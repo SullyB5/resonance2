@@ -157,6 +157,7 @@ export function startResonanceEngine() {
   }
   document.querySelectorAll("#families button").forEach(b => b.addEventListener("click", () => {
     applyState({ family: b.dataset.f });
+    paintLook("");
   }));
   $("dice").addEventListener("click", () => {
     const fams = ["harmono", "curve3d", "surface", "orb", "drum3d"];
@@ -173,13 +174,26 @@ export function startResonanceEngine() {
       n, m, p: randMode(),
       view: Math.random() < 0.5 ? "field" : "sand"
     });
+    paintLook("");
   });
   const LOOKS = {
-    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false }
+    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
+    nebula: { family: "orb", n: 11, m: 5, view: "sand", invert: false },
+    knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false },
+    helix: { family: "curve3d", n: 2, m: 3, p: 5, view: "sand", invert: false },
+    shell: { family: "surface", n: 8, m: 5, view: "field", invert: false },
+    drum: { family: "drum3d", n: 5, m: 3, view: "field", invert: false },
+    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false },
+    eye: { family: "harmono", n: 3, m: 2, view: "sand", invert: false },
+    clover: { family: "harmono", n: 4, m: 3, view: "sand", invert: false },
+    weave: { family: "harmono", n: 5, m: 4, view: "sand", invert: false }
   };
+  function paintLook(name) {
+    document.querySelectorAll("#looks [data-look]").forEach(x => x.setAttribute("aria-pressed", x.dataset.look === name));
+  }
   document.querySelectorAll("#looks [data-look]").forEach(b => b.addEventListener("click", () => {
     const look = LOOKS[b.dataset.look];
-    if (look) applyState(look);
+    if (look) { applyState(look); paintLook(b.dataset.look); }
   }));
   $("pace").addEventListener("input", e => { paceVal = +e.target.value; });
 

@@ -1,21 +1,76 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { startResonanceEngine } from './resonanceEngine.js'
 import './resonance.css'
 
 export default function App() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [view, setView] = useState('studio')
+
   useEffect(() => startResonanceEngine(), [])
+
+  useEffect(() => {
+    if (view === 'studio') window.dispatchEvent(new Event('resize'))
+  }, [view])
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
+
+  function go(next) {
+    setView(next)
+    setMenuOpen(false)
+  }
 
   return (
     <div className="wrap">
       <header>
-        <div className="mark" />
-        <div>
-          <div className="brand">Reson<em>ance</em></div>
-          <div className="tag">watch a pool of sound organize itself</div>
+        <div className="header-brand">
+          <div className="mark" />
+          <div>
+            <div className="brand">Reson<em>ance</em></div>
+            <div className="tag">watch a pool of sound organize itself</div>
+          </div>
         </div>
+        <button
+          type="button"
+          className="menu-btn"
+          aria-label="Open more"
+          aria-expanded={menuOpen}
+          aria-controls="morePanel"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span /><span /><span />
+        </button>
       </header>
 
-      <div className="dashboard">
+      {menuOpen && (
+        <button type="button" className="more-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+      )}
+      <aside id="morePanel" className={'more-panel' + (menuOpen ? ' open' : '')} aria-hidden={!menuOpen}>
+        <div className="more-head">
+          <div className="more-title">More</div>
+          <button type="button" className="more-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}>✕</button>
+        </div>
+        <nav className="more-nav" aria-label="Pages">
+          <button type="button" className="more-item" aria-current={view === 'studio' ? 'page' : undefined} onClick={() => go('studio')}>
+            <span className="more-item-name">Studio</span>
+            <span className="more-item-note">patterns and sound</span>
+          </button>
+          <button type="button" className="more-item" aria-current={view === 'lab' ? 'page' : undefined} onClick={() => go('lab')}>
+            <span className="more-item-name">Lab</span>
+            <span className="more-item-note">coming soon</span>
+          </button>
+        </nav>
+      </aside>
+
+      <div className="dashboard" hidden={view !== 'studio'}>
         <section className="card panel col-pattern">
           <h2 className="panel-heading">Pattern</h2>
           <h3 className="plabel">Pattern type</h3>
@@ -38,9 +93,18 @@ export default function App() {
           </div>
           <h3 className="plabel">Looks</h3>
           <div className="seg looks" id="looks" role="group" aria-label="named looks">
-            <button type="button" data-look="galaxy">galaxy</button>
+            <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
+            <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
+            <button type="button" data-look="knot" aria-pressed="false">knot</button>
+            <button type="button" data-look="helix" aria-pressed="false">helix</button>
+            <button type="button" data-look="shell" aria-pressed="false">shell</button>
+            <button type="button" data-look="drum" aria-pressed="false">drum</button>
+            <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
+            <button type="button" data-look="eye" aria-pressed="false">eye</button>
+            <button type="button" data-look="clover" aria-pressed="false">clover</button>
+            <button type="button" data-look="weave" aria-pressed="false">weave</button>
           </div>
-          <div className="hint">Jump to the galaxy look. Surprise still rolls a random 3D or harmonograph.</div>
+          <div className="hint">3D orbs, curves, drums — plus harmonograph eyes and weaves.</div>
           <h3 className="plabel">Motion</h3>
           <div className="nm-line pace-line">
             <span className="lab">detail</span>
@@ -55,9 +119,11 @@ export default function App() {
             <input id="sweepSpeed" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="sweep speed" />
           </div>
           <div className="hint" id="sweepHint">Glide pitch and patterns together. Use follow pitch above so shapes animate with the sound.</div>
-          <h3 className="plabel">AI picture</h3>
-          <button type="button" className="gen-open-btn" id="genOpen">✨ turn pattern into image</button>
-          <div className="hint">Snap the pattern → describe it → Gemini paints it. Add GEMINI_API_KEY in Vercel after you deploy.</div>
+          <div className="panel-tail">
+            <h3 className="plabel">AI picture</h3>
+            <button type="button" className="gen-open-btn" id="genOpen">✨ turn pattern into image</button>
+            <div className="hint">Snap the pattern → describe it → Gemini paints it. Add GEMINI_API_KEY in Vercel after you deploy.</div>
+          </div>
         </section>
 
         <section className="card stage col-stage">
@@ -118,6 +184,12 @@ export default function App() {
           </div>
         </section>
       </div>
+
+      <section className="card lab-page" hidden={view !== 'lab'}>
+        <h2 className="panel-heading">Lab</h2>
+        <p className="lab-copy">A spare room for the next idea — collections, sharing, or whatever we build next. Nothing lives here yet.</p>
+        <button type="button" className="gen-open-btn lab-back" onClick={() => go('studio')}>Back to studio</button>
+      </section>
 
       <div className="gen-overlay" id="genOverlay" hidden>
         <div className="gen-card">
