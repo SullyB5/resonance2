@@ -66,18 +66,13 @@ export function startResonanceEngine() {
   };
 
   let sweeping = false;
-  const sweepBtn = $("sweepBtn"), sweepSpeed = $("sweepSpeed");
   function paintSweep() {
+    const sweepBtn = $("sweepBtn");
+    if (!sweepBtn) return;
     sweepBtn.setAttribute("aria-pressed", sweeping);
     sweepBtn.classList.toggle("active", sweeping);
     sweepBtn.textContent = sweeping ? "sweeping…" : "sweep";
   }
-  sweepBtn.addEventListener("click", () => {
-    sweeping = !sweeping;
-    if (sweeping) setPatternSource("pitch");
-    paintSweep();
-  });
-  sweepSpeed.addEventListener("input", () => { sweepSpeedVal = +sweepSpeed.value; });
   function paintFreq() { freqVal.textContent = Math.round(freq); noteName.textContent = noteFor(freq); }
   function paintPlay() { playBtn.classList.toggle("playing", playing); playTxt.textContent = playing ? "Stop" : "Play"; playBtn.setAttribute("aria-pressed", playing); }
 
@@ -114,15 +109,15 @@ export function startResonanceEngine() {
   flipVBtn.addEventListener("click", () => { flipV = !flipV; flipVBtn.setAttribute("aria-pressed", flipV); });
 
   const nSlider = $("nSlider"), mSlider = $("mSlider"), nLabel = $("nLabel"), mLabel = $("mLabel");
-  let appPage = "studio";
-  const STUDIO_FAMS = ["harmono", "curve3d", "surface", "orb", "drum3d"];
-  const LAB_FAMS = ["square", "round", "ripple"];
-  function isStudioFamily(f) { return STUDIO_FAMS.includes(f); }
+  let appPage = "shapes";
+  const SHAPES_FAMS = ["harmono", "curve3d", "surface", "orb", "drum3d"];
+  const PLATES_FAMS = ["square", "round", "ripple"];
+  function isShapesFamily(f) { return SHAPES_FAMS.includes(f); }
   function syncFamilyButtons() {
-    document.querySelectorAll("#familiesStudio button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
-    document.querySelectorAll("#familiesLab button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+    document.querySelectorAll("#familiesShapes button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+    document.querySelectorAll("#familiesPlates button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
   }
-  function modeCap() { return USES_PITCH() ? SAND_MODE_MAX : (isStudioFamily(family) ? 120 : MODE_MAX); }
+  function modeCap() { return USES_PITCH() ? SAND_MODE_MAX : (isShapesFamily(family) ? 120 : MODE_MAX); }
   function setPatternSource(src) {
     patternSource = src;
     document.querySelectorAll("#psource button").forEach(x => x.setAttribute("aria-pressed", x.dataset.p === src));
@@ -134,15 +129,15 @@ export function startResonanceEngine() {
   }
   function updateStageControls() {
     const pitchPattern = USES_PITCH();
-    const onLab = appPage === "lab";
+    const onPlates = appPage === "plates";
     const psourceBlock = $("psourceBlock");
     const sweepBlock = $("sweepBlock");
     const viewGroup = $("views");
     const mirrorBtn = $("mirror");
-    if (psourceBlock) psourceBlock.hidden = !onLab;
-    if (sweepBlock) sweepBlock.hidden = !onLab;
-    if (viewGroup) viewGroup.hidden = !onLab || !pitchPattern;
-    if (mirrorBtn) mirrorBtn.hidden = !onLab || !pitchPattern;
+    if (psourceBlock) psourceBlock.hidden = !onPlates;
+    if (sweepBlock) sweepBlock.hidden = !onPlates;
+    if (viewGroup) viewGroup.hidden = !onPlates || !pitchPattern;
+    if (mirrorBtn) mirrorBtn.hidden = !onPlates || !pitchPattern;
     if (!pitchPattern) {
       if (patternSource === "pitch") setPatternSource("manual");
       else if (sweeping) { sweeping = false; paintSweep(); }
@@ -185,9 +180,6 @@ export function startResonanceEngine() {
   mSlider.addEventListener("input", () => setManualFromSliders("m"));
   nSlider.addEventListener("change", () => setManualFromSliders("n"));
   mSlider.addEventListener("change", () => setManualFromSliders("m"));
-  document.querySelectorAll("#psource button").forEach(b => b.addEventListener("click", () => {
-    setPatternSource(b.dataset.p);
-  }));
   function sandModesFromFreq(f) {
     const t = Math.log(Math.max(f, FMIN) / FMIN) / Math.log(FMAX / FMIN);
     let n = Math.max(2, Math.min(SAND_MODE_MAX, Math.round(2 + t * (SAND_MODE_MAX - 2))));
@@ -237,34 +229,64 @@ export function startResonanceEngine() {
     seedGrains();
     updateZLine(); updateGrab(); updateModelChip(); updateStageControls();
   }
-  document.querySelectorAll("#familiesStudio button").forEach(b => b.addEventListener("click", () => {
-    applyState({ family: b.dataset.f, n: 6, m: 4, p: 5 });
-    setPatternSource("manual");
-    paintLook("");
-  }));
-  document.querySelectorAll("#familiesLab button").forEach(b => b.addEventListener("click", () => {
-    applyState({ family: b.dataset.f, n: 6, m: 4, view: "sand" });
-    setPatternSource("pitch");
-    paintLook("");
-  }));
+  function bindOnce(el, handler) {
+    if (!el || el.dataset.resonanceBound) return;
+    el.dataset.resonanceBound = "1";
+    handler(el);
+  }
+  function bindPageControls() {
+    document.querySelectorAll("#familiesShapes button").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => {
+        applyState({ family: btn.dataset.f, n: 6, m: 4, p: 5 });
+        setPatternSource("manual");
+        paintLook("");
+      });
+    }));
+    document.querySelectorAll("#familiesPlates button").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => {
+        applyState({ family: btn.dataset.f, n: 6, m: 4, view: "sand" });
+        setPatternSource("pitch");
+        paintLook("");
+      });
+    }));
+    document.querySelectorAll("#looks [data-look]").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => {
+        const look = LOOKS[btn.dataset.look];
+        if (look) { applyState(look); paintLook(btn.dataset.look); }
+      });
+    }));
+    document.querySelectorAll("#psource button").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => setPatternSource(btn.dataset.p));
+    }));
+    bindOnce($("pace"), (el) => el.addEventListener("input", e => { paceVal = +e.target.value; }));
+    bindOnce($("sweepBtn"), (el) => el.addEventListener("click", () => {
+      sweeping = !sweeping;
+      if (sweeping) setPatternSource("pitch");
+      paintSweep();
+    }));
+    bindOnce($("sweepSpeed"), (el) => el.addEventListener("input", () => { sweepSpeedVal = +el.value; }));
+    wireColorInput($("vizBg"), "bg");
+    wireColorInput($("vizModel"), "model");
+    wireColorInput($("vizAccent"), "accent");
+  }
   $("dice").addEventListener("click", () => {
-    const onLab = appPage === "lab";
-    const fams = onLab ? LAB_FAMS : STUDIO_FAMS;
+    const onPlates = appPage === "plates";
+    const fams = onPlates ? PLATES_FAMS : SHAPES_FAMS;
     const randMode = () => {
-      if (onLab) return 2 + Math.floor(Math.random() * (SAND_MODE_MAX - 1));
+      if (onPlates) return 2 + Math.floor(Math.random() * (SAND_MODE_MAX - 1));
       const r = Math.random();
       if (r < 0.7) return 2 + Math.floor(Math.random() * 20);
       return 20 + Math.floor(Math.random() * 40);
     };
     let n = randMode(), m = randMode();
-    const cap = onLab ? SAND_MODE_MAX : 120;
+    const cap = onPlates ? SAND_MODE_MAX : 120;
     if (n === m) m = Math.min(cap, m + 1);
     applyState({
       family: fams[Math.floor(Math.random() * fams.length)],
       n, m, p: randMode(),
-      view: onLab ? (Math.random() < 0.5 ? "field" : "sand") : "field"
+      view: onPlates ? (Math.random() < 0.5 ? "field" : "sand") : "field"
     });
-    if (onLab) setPatternSource("pitch");
+    if (onPlates) setPatternSource("pitch");
     paintLook("");
   });
   const LOOKS = {
@@ -276,11 +298,6 @@ export function startResonanceEngine() {
   function paintLook(name) {
     document.querySelectorAll("#looks [data-look]").forEach(x => x.setAttribute("aria-pressed", x.dataset.look === name));
   }
-  document.querySelectorAll("#looks [data-look]").forEach(b => b.addEventListener("click", () => {
-    const look = LOOKS[b.dataset.look];
-    if (look) { applyState(look); paintLook(b.dataset.look); }
-  }));
-  $("pace").addEventListener("input", e => { paceVal = +e.target.value; });
 
   let viewZoom = 1;
   const ZOOM_MIN = 0.6, ZOOM_MAX = 2.4, ZOOM_STEP = 0.2;
@@ -381,18 +398,21 @@ export function startResonanceEngine() {
   const vizBgInput = $("vizBg"), vizModelInput = $("vizModel"), vizAccentInput = $("vizAccent");
   function wireColorInput(el, key) {
     if (!el) return;
-    el.addEventListener("input", () => {
-      const rgb = hexToRgb(el.value);
-      if (key === "bg") vizBg = el.value;
-      else if (key === "model") modelRgb = rgb;
-      else accentRgb = rgb;
-      applyVizColors();
+    bindOnce(el, (input) => {
+      input.addEventListener("input", () => {
+        const rgb = hexToRgb(input.value);
+        if (key === "bg") vizBg = input.value;
+        else if (key === "model") modelRgb = rgb;
+        else accentRgb = rgb;
+        applyVizColors();
+      });
     });
   }
   wireColorInput(vizBgInput, "bg");
   wireColorInput(vizModelInput, "model");
   wireColorInput(vizAccentInput, "accent");
   applyVizColors();
+  bindPageControls();
 
   function besselJ(m, x) {
     x = Math.abs(x);
@@ -796,15 +816,20 @@ export function startResonanceEngine() {
   }
 
   function setAppPage(page) {
-    appPage = page === "lab" ? "lab" : "studio";
-    if (appPage === "lab") {
-      if (!USES_PITCH()) applyState({ family: "square", n: 6, m: 4, view: "sand" });
-      setPatternSource("pitch");
-    } else if (USES_PITCH()) {
-      applyState({ family: "orb", n: 6, m: 4, p: 5, view: "field" });
-      setPatternSource("manual");
-    }
-    updateStageControls();
+    appPage = page === "plates" ? "plates" : "shapes";
+    requestAnimationFrame(() => {
+      bindPageControls();
+      onResize();
+      if (appPage === "plates") {
+        if (!USES_PITCH()) applyState({ family: "square", n: 6, m: 4, view: "sand" });
+        setPatternSource("pitch");
+      } else if (USES_PITCH()) {
+        applyState({ family: "orb", n: 6, m: 4, p: 5, view: "field" });
+        setPatternSource("manual");
+      }
+      updateStageControls();
+      applyVizColors();
+    });
   }
   const onResonancePage = (e) => setAppPage(e.detail);
   window.addEventListener("resonance-page", onResonancePage);
