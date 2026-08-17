@@ -65,7 +65,7 @@ export default function App() {
           </button>
           <button type="button" className="more-item" aria-current={view === 'lab' ? 'page' : undefined} onClick={() => go('lab')}>
             <span className="more-item-name">Lab</span>
-            <span className="more-item-note">coming soon</span>
+            <span className="more-item-note">music mix, later</span>
           </button>
         </nav>
       </aside>
@@ -96,15 +96,12 @@ export default function App() {
             <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
             <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
             <button type="button" data-look="knot" aria-pressed="false">knot</button>
-            <button type="button" data-look="helix" aria-pressed="false">helix</button>
             <button type="button" data-look="shell" aria-pressed="false">shell</button>
             <button type="button" data-look="drum" aria-pressed="false">drum</button>
             <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
             <button type="button" data-look="eye" aria-pressed="false">eye</button>
-            <button type="button" data-look="clover" aria-pressed="false">clover</button>
-            <button type="button" data-look="weave" aria-pressed="false">weave</button>
           </div>
-          <div className="hint">3D orbs, curves, drums — plus harmonograph eyes and weaves.</div>
+          <div className="hint">3D orbs, curves, drums, and a couple of harmonograph shapes.</div>
           <h3 className="plabel">Motion</h3>
           <div className="nm-line pace-line">
             <span className="lab">detail</span>
@@ -132,6 +129,11 @@ export default function App() {
             <div className="hud hud-tl"><span id="freqVal">220</span><span className="u">Hz</span></div>
             <div className="hud hud-tr"><span id="noteName">A3</span><span className="cap">nearest note</span></div>
             <div className="hud hud-bl" id="modeNM">orb · 6×4</div>
+            <div className="hud hud-br zoom-pad">
+              <button type="button" id="zoomOut" aria-label="zoom out">−</button>
+              <span id="zoomVal">100%</span>
+              <button type="button" id="zoomIn" aria-label="zoom in">+</button>
+            </div>
           </div>
           <div className="pitch-row"><span className="lab">Pitch</span><input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="pitch" /></div>
           <div className="transport">
@@ -171,6 +173,9 @@ export default function App() {
             <button type="button" data-m="chord" aria-pressed="false">chord</button>
           </div>
           <div className="hint" id="modeHint">One clean tone. Slide Pitch and watch the pool rearrange.</div>
+          <div className="sound-rest" aria-hidden="true">
+            <span className="sound-rest-line">listen first, then look</span>
+          </div>
         </section>
 
         <section className="col-signals">
@@ -187,7 +192,25 @@ export default function App() {
 
       <section className="card lab-page" hidden={view !== 'lab'}>
         <h2 className="panel-heading">Lab</h2>
-        <p className="lab-copy">A spare room for the next idea — collections, sharing, or whatever we build next. Nothing lives here yet.</p>
+        <p className="lab-copy">A future mixer: copyright-free beds under short clips of your moving frequencies. Nothing plays yet — this is the sketch so we can build it later without rushing it tonight.</p>
+        <div className="lab-mix">
+          <article className="lab-clip">
+            <div className="lab-clip-art a" />
+            <h3>Still water</h3>
+            <p>CC0 bed · coming soon</p>
+          </article>
+          <article className="lab-clip">
+            <div className="lab-clip-art b" />
+            <h3>Warm air</h3>
+            <p>CC0 bed · coming soon</p>
+          </article>
+          <article className="lab-clip">
+            <div className="lab-clip-art c" />
+            <h3>Pattern clip</h3>
+            <p>your frequency, looping · coming soon</p>
+          </article>
+        </div>
+        <p className="hint">When we wire this, audio will only come from public-domain or CC0 sources.</p>
         <button type="button" className="gen-open-btn lab-back" onClick={() => go('studio')}>Back to studio</button>
       </section>
 

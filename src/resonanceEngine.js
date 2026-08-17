@@ -180,13 +180,10 @@ export function startResonanceEngine() {
     galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
     nebula: { family: "orb", n: 11, m: 5, view: "sand", invert: false },
     knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false },
-    helix: { family: "curve3d", n: 2, m: 3, p: 5, view: "sand", invert: false },
     shell: { family: "surface", n: 8, m: 5, view: "field", invert: false },
     drum: { family: "drum3d", n: 5, m: 3, view: "field", invert: false },
     infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false },
-    eye: { family: "harmono", n: 3, m: 2, view: "sand", invert: false },
-    clover: { family: "harmono", n: 4, m: 3, view: "sand", invert: false },
-    weave: { family: "harmono", n: 5, m: 4, view: "sand", invert: false }
+    eye: { family: "harmono", n: 3, m: 2, view: "sand", invert: false }
   };
   function paintLook(name) {
     document.querySelectorAll("#looks [data-look]").forEach(x => x.setAttribute("aria-pressed", x.dataset.look === name));
@@ -196,6 +193,18 @@ export function startResonanceEngine() {
     if (look) { applyState(look); paintLook(b.dataset.look); }
   }));
   $("pace").addEventListener("input", e => { paceVal = +e.target.value; });
+
+  let viewZoom = 1;
+  const ZOOM_MIN = 0.6, ZOOM_MAX = 2.4, ZOOM_STEP = 0.2;
+  const zoomVal = $("zoomVal"), zoomIn = $("zoomIn"), zoomOut = $("zoomOut");
+  function paintZoom() { if (zoomVal) zoomVal.textContent = Math.round(viewZoom * 100) + "%"; }
+  function setZoom(z) {
+    viewZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10));
+    paintZoom();
+  }
+  if (zoomIn) zoomIn.addEventListener("click", () => setZoom(viewZoom + ZOOM_STEP));
+  if (zoomOut) zoomOut.addEventListener("click", () => setZoom(viewZoom - ZOOM_STEP));
+  paintZoom();
 
   paintFreq(); paintPlay();
 
@@ -212,25 +221,41 @@ export function startResonanceEngine() {
   plate.addEventListener("pointermove", e => { if (!dragging) return; yaw += (e.clientX - lastX) * 0.01; pitch += (e.clientY - lastY) * 0.01; pitch = Math.max(-1.45, Math.min(1.45, pitch)); lastX = e.clientX; lastY = e.clientY; });
   const endDrag = () => { dragging = false; };
   plate.addEventListener("pointerup", endDrag); plate.addEventListener("pointercancel", endDrag); plate.addEventListener("pointerleave", endDrag);
+  plate.addEventListener("wheel", e => {
+    e.preventDefault();
+    setZoom(viewZoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+  }, { passive: false });
 
   const timeBuf = new Uint8Array(2048), freqBuf = new Uint8Array(1024);
   function drawScope() {
     const { w, h } = SC; sctx.clearRect(0, 0, w, h);
-    sctx.strokeStyle = "rgba(18,58,87,0.10)"; sctx.lineWidth = 1; sctx.beginPath(); sctx.moveTo(0, h / 2); sctx.lineTo(w, h / 2); sctx.stroke();
+    const idle = performance.now() / 900;
+    sctx.strokeStyle = "rgba(214,180,92,0.22)"; sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(0, h / 2); sctx.lineTo(w, h / 2); sctx.stroke();
+    sctx.strokeStyle = "rgba(27,157,232,0.10)";
+    sctx.beginPath(); sctx.arc(w * 0.18, h * 0.5, h * 0.28, 0, Math.PI * 2); sctx.stroke();
+    sctx.beginPath(); sctx.arc(w * 0.82, h * 0.5, h * 0.22, 0, Math.PI * 2); sctx.stroke();
     if (analyser && playing) analyser.getByteTimeDomainData(timeBuf);
     sctx.lineWidth = 2.4; sctx.strokeStyle = "#1B9DE8"; sctx.shadowColor = "rgba(27,157,232,0.45)"; sctx.shadowBlur = 8;
     sctx.beginPath(); const N = timeBuf.length, step = w / N;
-    for (let i = 0; i < N; i++) { const v = playing ? (timeBuf[i] - 128) / 128 : 0; const x = i * step, y = h / 2 + v * (h / 2 - 8); i ? sctx.lineTo(x, y) : sctx.moveTo(x, y); }
+    for (let i = 0; i < N; i++) {
+      const live = playing ? (timeBuf[i] - 128) / 128 : Math.sin(i / N * Math.PI * 4 + idle) * 0.16;
+      const x = i * step, y = h / 2 + live * (h / 2 - 8);
+      i ? sctx.lineTo(x, y) : sctx.moveTo(x, y);
+    }
     sctx.stroke(); sctx.shadowBlur = 0;
   }
   function drawSpectrum() {
     const { w, h } = SP; spctx.clearRect(0, 0, w, h);
+    const idle = performance.now() / 700;
     if (analyser && playing) analyser.getByteFrequencyData(freqBuf);
     const bars = 64, bw = w / bars;
     for (let i = 0; i < bars; i++) {
-      const v = playing ? freqBuf[i] / 255 : 0, bh = v * (h - 6), t = i / bars;
+      const live = playing ? freqBuf[i] / 255 : 0.08 + 0.14 * (0.5 + 0.5 * Math.sin(idle + i * 0.22));
+      const bh = live * (h - 6), t = i / bars;
       const r = Math.round(27 * (1 - t) + 47 * t), g = Math.round(157 * (1 - t) + 203 * t), b = Math.round(232 * (1 - t) + 190 * t);
-      spctx.fillStyle = `rgba(${r},${g},${b},0.95)`; spctx.fillRect(i * bw + 1, h - bh, bw - 2, bh);
+      spctx.fillStyle = playing ? `rgba(${r},${g},${b},0.95)` : `rgba(${r},${g},${b},0.38)`;
+      spctx.fillRect(i * bw + 1, h - bh, bw - 2, bh);
     }
   }
 
@@ -318,7 +343,7 @@ export function startResonanceEngine() {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
     if (!paused && !reduce) hPhase += 0.0015 * (paceVal / 3);
     const a = Math.max(1, n), b = Math.max(1, m);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42 * viewZoom;
     const dt = 0.22 / Math.max(a, b, 2), STEPS = 7200, decay = 3.6 / (STEPS * dt), p = hPhase + Math.PI / 2;
     pctx.save(); applyFlip(w, h);
     let stroke;
@@ -341,7 +366,7 @@ export function startResonanceEngine() {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
     build3(n, m, p);
     if (!paused && !dragging && !reduce) yaw += spinRate();
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.40;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.40 * viewZoom;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
     const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1;
     pctx.lineWidth = 1.7; pctx.lineJoin = "round";
@@ -399,7 +424,7 @@ export function startResonanceEngine() {
     if (!paused && !dragging && !reduce) yaw += spinRate();
     const G = GS, W = G + 1, amp = 0.9;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
-    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * (kind === "drum" ? 0.58 : 0.62);
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * (kind === "drum" ? 0.58 : 0.62) * viewZoom;
     const Lx = 0.35, Ly = 0.45, Lz = 0.82;
     const px = new Float32Array(W * W), py = new Float32Array(W * W), pz = new Float32Array(W * W);
     const nrx = new Float32Array(W * W), nry = new Float32Array(W * W), nrz = new Float32Array(W * W);
@@ -456,7 +481,7 @@ export function startResonanceEngine() {
     buildOrb(n, m);
     if (!paused && !dragging && !reduce) yaw += spinRate();
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
-    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42;
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42 * viewZoom;
     const pts = new Array(orbPts.length);
     for (let i = 0; i < orbPts.length; i++) {
       const P = orbPts[i], x = P[0], y = P[1], z = P[2];
@@ -529,7 +554,10 @@ export function startResonanceEngine() {
     if (family === "harmono") { drawHarmono(w, h, n, m); return; }
     if (plateView === "field") {
       renderField(n, m);
-      pctx.save(); applyFlip(w, h); pctx.imageSmoothingEnabled = true; pctx.drawImage(fieldCanvas, 0, 0, w, h); pctx.restore();
+      pctx.save(); applyFlip(w, h); pctx.imageSmoothingEnabled = true;
+      const dw = w * viewZoom, dh = h * viewZoom;
+      pctx.drawImage(fieldCanvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      pctx.restore();
       drawMirrorLines(w, h); label(n, m); return;
     }
     pctx.fillStyle = "rgba(244,251,255,0.16)"; pctx.fillRect(0, 0, w, h);
@@ -550,7 +578,10 @@ export function startResonanceEngine() {
         p.x = Math.min(1, Math.max(0, p.x + (Math.random() * 2 - 1) * jitter));
         p.y = Math.min(1, Math.max(0, p.y + (Math.random() * 2 - 1) * jitter));
       }
-      pctx.fillRect(p.x * w, p.y * h, grainSize, grainSize);
+      const zx = 0.5 + (p.x - 0.5) * viewZoom, zy = 0.5 + (p.y - 0.5) * viewZoom;
+      if (zx < -0.08 || zx > 1.08 || zy < -0.08 || zy > 1.08) continue;
+      const gs = grainSize * Math.min(1.35, 0.85 + viewZoom * 0.2);
+      pctx.fillRect(zx * w, zy * h, gs, gs);
     }
     pctx.restore(); drawMirrorLines(w, h); label(n, m);
   }
