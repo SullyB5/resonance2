@@ -1,18 +1,16 @@
-// Serverless proxy to fal.ai — CommonJS for reliable Vercel runtime.
+// Serverless proxy to fal.ai — keeps FAL_KEY hidden from the browser.
 const MODEL = "fal-ai/fast-sdxl/image-to-image";
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.status(405).json({ error: "POST only." });
-    return;
+    return res.status(405).json({ error: "POST only." });
   }
 
   const key = process.env.FAL_KEY;
   if (!key) {
-    res.status(500).json({
+    return res.status(500).json({
       error: "The image key isn't set yet. Add FAL_KEY in Vercel → Settings → Environment Variables, then redeploy."
     });
-    return;
   }
 
   try {
@@ -30,8 +28,7 @@ module.exports = async (req, res) => {
 
     const { image, prompt, strength } = body;
     if (!image || !prompt) {
-      res.status(400).json({ error: "Need both an image and a prompt." });
-      return;
+      return res.status(400).json({ error: "Need both an image and a prompt." });
     }
 
     const s = typeof strength === "number" ? Math.min(0.95, Math.max(0.1, strength)) : 0.5;
@@ -54,20 +51,18 @@ module.exports = async (req, res) => {
 
     if (!r.ok) {
       const m = data && (data.detail || data.error || data.message);
-      res.status(r.status).json({
+      return res.status(r.status).json({
         error: typeof m === "string" ? m : m ? JSON.stringify(m) : "Image service error."
       });
-      return;
     }
 
     const url = data && data.images && data.images[0] && data.images[0].url;
     if (!url) {
-      res.status(502).json({ error: "No image came back from the renderer." });
-      return;
+      return res.status(502).json({ error: "No image came back from the renderer." });
     }
 
-    res.status(200).json({ url });
+    return res.status(200).json({ url });
   } catch (e) {
-    res.status(500).json({ error: (e && e.message) ? e.message : "Server error." });
+    return res.status(500).json({ error: (e && e.message) ? e.message : "Server error." });
   }
-};
+}
