@@ -46,7 +46,7 @@ export default function App() {
           <div className="hint" id="sweepHint">Glide pitch and patterns together. Use follow pitch above so shapes animate with the sound.</div>
           <h3 className="plabel">AI picture</h3>
           <button type="button" className="gen-open-btn" id="genOpen">✨ turn pattern into image</button>
-          <div className="hint">Captures the swirl on the plate, then you describe what it becomes — e.g. &quot;this swirl is a black hole sucking everything in.&quot; Needs FAL_KEY on deploy.</div>
+          <div className="hint">Snap the pattern → describe it → AI paints it. Only works on the live site after you add a fal.ai key (see steps below).</div>
         </section>
 
         <section className="card stage col-stage">

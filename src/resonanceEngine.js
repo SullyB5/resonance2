@@ -462,7 +462,7 @@ export function startResonanceEngine() {
       let j = {}; try { j = await resp.json(); } catch (_) {}
       if (resp.ok && j.url) { genOut.src = j.url; genStatus.textContent = ""; genResultWrap.hidden = false; }
       else { genForm.style.display = ""; genStatus.textContent = (j && j.error) ? j.error : ("Render failed (" + resp.status + "). Is the API key set?"); }
-    } catch (err) { genForm.style.display = ""; genStatus.textContent = "Couldn't reach the renderer — this only works on the live site with a key set."; }
+    } catch (err) { genForm.style.display = ""; genStatus.textContent = "Can't reach the AI server — deploy to Vercel first (localhost won't work)."; }
     genGo.disabled = false;
   }
   genGo.addEventListener("click", generate);
