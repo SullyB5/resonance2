@@ -26,6 +26,8 @@ export default function App() {
             <button type="button" data-f="harmono" aria-pressed="false">harmonograph</button>
             <button type="button" data-f="curve3d" aria-pressed="false">3D curve</button>
             <button type="button" data-f="surface" aria-pressed="false">3D surface</button>
+            <button type="button" data-f="orb" aria-pressed="false">3D orb</button>
+            <button type="button" data-f="drum3d" aria-pressed="false">3D drum</button>
           </div>
           <h3 className="plabel">Pattern source</h3>
           <div className="seg" id="psource" role="group" aria-label="pattern source">
@@ -33,20 +35,39 @@ export default function App() {
             <button type="button" data-p="manual" aria-pressed="false">pick it yourself</button>
           </div>
           <div className="nm">
-            <div className="nm-line"><span className="nm-tag">n</span><input id="nSlider" className="cool" type="range" min="1" max="100" step="1" defaultValue="3" aria-label="mode n" /><span className="nm-val" id="nLabel">3</span></div>
-            <div className="nm-line"><span className="nm-tag">m</span><input id="mSlider" className="cool" type="range" min="1" max="100" step="1" defaultValue="2" aria-label="mode m" /><span className="nm-val" id="mLabel">2</span></div>
-            <div className="nm-line" id="zLine" style={{ display: 'none' }}><span className="nm-tag">z</span><input id="pSlider" className="cool" type="range" min="1" max="100" step="1" defaultValue="5" aria-label="depth frequency z" /><span className="nm-val" id="pLabel">5</span></div>
+            <div className="nm-line"><span className="nm-tag">n</span><input id="nSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="3" aria-label="mode n" /><span className="nm-val" id="nLabel">3</span></div>
+            <div className="nm-line"><span className="nm-tag">m</span><input id="mSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="2" aria-label="mode m" /><span className="nm-val" id="mLabel">2</span></div>
+            <div className="nm-line" id="zLine" style={{ display: 'none' }}><span className="nm-tag">z</span><input id="pSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="5" aria-label="depth frequency z" /><span className="nm-val" id="pLabel">5</span></div>
           </div>
+          <h3 className="plabel">Looks</h3>
+          <div className="seg looks" id="looks" role="group" aria-label="named looks">
+            <button type="button" data-look="eye">eye</button>
+            <button type="button" data-look="flower">flower</button>
+            <button type="button" data-look="snowflake">snowflake</button>
+            <button type="button" data-look="star">star</button>
+            <button type="button" data-look="infinity">infinity</button>
+            <button type="button" data-look="galaxy">galaxy</button>
+            <button type="button" data-look="shell">shell</button>
+            <button type="button" data-look="knot">knot</button>
+          </div>
+          <div className="hint">Jump to a shaped pattern. Surprise on the plate still rolls a random one.</div>
+          <h3 className="plabel">Motion</h3>
+          <div className="nm-line pace-line">
+            <span className="lab">detail</span>
+            <input id="pace" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="motion pace" />
+            <span className="lab">flow</span>
+          </div>
+          <div className="hint">Keep it left to let fine lines settle. Right is faster and looser.</div>
           <h3 className="plabel">Sweep</h3>
           <div className="sweep-row">
             <button type="button" className="chip sweep-btn" id="sweepBtn" aria-pressed="false">sweep</button>
             <span className="lab">speed</span>
-            <input id="sweepSpeed" className="cool" type="range" min="1" max="10" defaultValue="5" aria-label="sweep speed" />
+            <input id="sweepSpeed" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="sweep speed" />
           </div>
           <div className="hint" id="sweepHint">Glide pitch and patterns together. Use follow pitch above so shapes animate with the sound.</div>
           <h3 className="plabel">AI picture</h3>
           <button type="button" className="gen-open-btn" id="genOpen">✨ turn pattern into image</button>
-          <div className="hint">Snap the pattern → describe it → AI paints it. Only works on the live site after you add a fal.ai key (see steps below).</div>
+          <div className="hint">Snap the pattern → describe it → Gemini paints it. Add GEMINI_API_KEY in Vercel after you deploy.</div>
         </section>
 
         <section className="card stage col-stage">
@@ -109,9 +130,9 @@ export default function App() {
       </div>
 
       <div className="learn">
-        <div className="b"><div className="k">Four makers</div><p>Square plate, round drum, ripple pool, and a harmonograph that draws curves from two frequencies — four different ways to turn sound into shape.</p></div>
-        <div className="b"><div className="k">Higher = busier</div><p>Push pitch or the n and m dials up and the lines multiply. There&apos;s no real ceiling — it just keeps subdividing.</p></div>
-        <div className="b"><div className="k">Made for ideas</div><p>Hit 🎲 to jump somewhere unexpected. Pause on a shape you like — it&apos;s a ready-made icon or logo seed.</p></div>
+        <div className="b"><div className="k">Eight makers</div><p>Plates, drums, ripples, and a harmonograph in 2D — plus curves, surfaces, orbs, and a 3D drum you can drag to turn.</p></div>
+        <div className="b"><div className="k">Higher = finer</div><p>Push pitch or the n and m dials up and the lines multiply. High numbers weave dense lattices — slow Motion toward detail so they can settle.</p></div>
+        <div className="b"><div className="k">Made for ideas</div><p>Try a named look, or hit 🎲 for chaos. Pause on a shape you like — it&apos;s a ready-made icon or logo seed.</p></div>
       </div>
 
       <div className="foot">headphones optional · nothing is recorded · 🎲 for chaos</div>

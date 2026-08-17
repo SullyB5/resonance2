@@ -12,9 +12,13 @@ export function startResonanceEngine() {
   let showMirror = false, plateView = "sand", invert = false, paused = false;
   let patternSource = "pitch", manN = 3, manM = 2, flipH = false, flipV = false, family = "square", manP = 5;
   let yaw = 0.6, pitch = 0.5, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
+  let orbPts = [], orbKey = "";
   const GS = 96;
-  const MODE_MAX = 100;
-  const FRES = 512;
+  const MODE_MAX = 500;
+  const FRES = 640;
+  let paceVal = 3;
+  const THREE_D = () => family === "curve3d" || family === "surface" || family === "orb" || family === "drum3d";
+  const spinRate = () => (reduce || paused || dragging) ? 0 : 0.0015 * (paceVal / 3);
   let surfKey = "", surfH = null, surfNX = null, surfNY = null, surfNZ = null;
 
   function ensureCtx() {
@@ -123,29 +127,68 @@ export function startResonanceEngine() {
   const pSlider = $("pSlider"), pLabel = $("pLabel"), zLine = $("zLine");
   pSlider.addEventListener("input", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
   function updateZLine() { zLine.style.display = family === "curve3d" ? "flex" : "none"; }
-  function updateGrab() { plate.classList.toggle("grab", family === "curve3d" || family === "surface"); }
-  function updateModelChip() { $("saveModel").style.display = (family === "curve3d" || family === "surface") ? "inline-block" : "none"; }
+  function updateGrab() { plate.classList.toggle("grab", THREE_D()); }
+  function updateModelChip() { $("saveModel").style.display = THREE_D() ? "inline-block" : "none"; }
   $("saveImg").addEventListener("click", exportPNG);
   $("saveModel").addEventListener("click", exportOBJ);
   function current3() { if (patternSource === "manual") return { n: manN, m: manM, p: manP }; const c = modeNumbers(freq); return { n: c.n, m: c.m, p: Math.max(1, Math.min(MODE_MAX, Math.round((c.n + c.m) / 1.6))) }; }
 
+  function resetViewForFamily() {
+    if (family === "surface" || family === "drum3d") { yaw = 0.55; pitch = 1.05; }
+    else if (family === "curve3d" || family === "orb") { yaw = 0.7; pitch = 0.42; }
+  }
+  function applyState(s) {
+    if (s.family) family = s.family;
+    document.querySelectorAll("#families button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+    if (s.n != null) { manN = s.n; nSlider.value = manN; nLabel.textContent = manN; }
+    if (s.m != null) { manM = s.m; mSlider.value = manM; mLabel.textContent = manM; }
+    if (s.p != null) { manP = s.p; pSlider.value = manP; pLabel.textContent = manP; }
+    if (s.view) {
+      plateView = s.view;
+      document.querySelectorAll("#views button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === plateView));
+    }
+    if (s.invert != null) { invert = s.invert; invertBtn.setAttribute("aria-pressed", invert); }
+    if (s.flipH != null) { flipH = s.flipH; flipHBtn.setAttribute("aria-pressed", flipH); }
+    if (s.flipV != null) { flipV = s.flipV; flipVBtn.setAttribute("aria-pressed", flipV); }
+    resetViewForFamily();
+    if (s.n != null || s.m != null || s.p != null) setPatternSource("manual");
+    seedGrains(); lastFieldKey = ""; surfKey = ""; base3Key = ""; orbKey = "";
+    updateZLine(); updateGrab(); updateModelChip();
+  }
   document.querySelectorAll("#families button").forEach(b => b.addEventListener("click", () => {
-    family = b.dataset.f; document.querySelectorAll("#families button").forEach(x => x.setAttribute("aria-pressed", x === b));
-    if (family === "surface") { yaw = 0.5; pitch = 1.0; } else if (family === "curve3d") { yaw = 0.6; pitch = 0.5; }
-    seedGrains(); lastFieldKey = ""; surfKey = ""; base3Key = ""; updateZLine(); updateGrab(); updateModelChip();
+    applyState({ family: b.dataset.f });
   }));
   $("dice").addEventListener("click", () => {
-    const fams = ["square", "round", "ripple", "harmono", "curve3d", "surface"]; family = fams[Math.floor(Math.random() * fams.length)];
-    document.querySelectorAll("#families button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
-    manN = 1 + Math.floor(Math.random() * MODE_MAX); manM = 1 + Math.floor(Math.random() * MODE_MAX); if (manN === manM) manM = (manM % MODE_MAX) + 1;
-    manP = 1 + Math.floor(Math.random() * MODE_MAX);
-    nSlider.value = manN; mSlider.value = manM; nLabel.textContent = manN; mLabel.textContent = manM;
-    pSlider.value = manP; pLabel.textContent = manP;
-    plateView = Math.random() < 0.5 ? "field" : "sand";
-    if (family === "surface") { yaw = 0.5; pitch = 1.0; } else if (family === "curve3d") { yaw = 0.6; pitch = 0.5; }
-    document.querySelectorAll("#views button").forEach(x => x.setAttribute("aria-pressed", x.dataset.v === plateView));
-    setPatternSource("manual"); seedGrains(); lastFieldKey = ""; surfKey = ""; base3Key = ""; updateZLine(); updateGrab(); updateModelChip();
+    const fams = ["square", "round", "ripple", "harmono", "curve3d", "surface", "orb", "drum3d"];
+    const randMode = () => {
+      const r = Math.random();
+      if (r < 0.55) return 2 + Math.floor(Math.random() * 36);
+      if (r < 0.88) return 40 + Math.floor(Math.random() * 100);
+      return 140 + Math.floor(Math.random() * (MODE_MAX - 139));
+    };
+    let n = randMode(), m = randMode();
+    if (n === m) m = Math.min(MODE_MAX, m + 1);
+    applyState({
+      family: fams[Math.floor(Math.random() * fams.length)],
+      n, m, p: randMode(),
+      view: Math.random() < 0.5 ? "field" : "sand"
+    });
   });
+  const LOOKS = {
+    eye: { family: "round", n: 8, m: 1, view: "sand", invert: false, flipH: false, flipV: false },
+    flower: { family: "round", n: 5, m: 8, view: "sand", invert: false },
+    snowflake: { family: "square", n: 13, m: 12, view: "field", invert: false },
+    star: { family: "round", n: 4, m: 5, view: "sand", invert: false },
+    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false },
+    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
+    shell: { family: "surface", n: 9, m: 4, view: "field", invert: false },
+    knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false }
+  };
+  document.querySelectorAll("#looks [data-look]").forEach(b => b.addEventListener("click", () => {
+    const look = LOOKS[b.dataset.look];
+    if (look) applyState(look);
+  }));
+  $("pace").addEventListener("input", e => { paceVal = +e.target.value; });
 
   paintFreq(); paintPlay();
 
@@ -158,7 +201,7 @@ export function startResonanceEngine() {
   const onResize = () => { SC = fit(scope, sctx); SP = fit(spec, spctx); PL = fit(plate, pctx); seedGrains(); };
   window.addEventListener("resize", onResize);
 
-  plate.addEventListener("pointerdown", e => { if (family !== "curve3d" && family !== "surface") return; dragging = true; lastX = e.clientX; lastY = e.clientY; try { plate.setPointerCapture(e.pointerId); } catch (_) {} });
+  plate.addEventListener("pointerdown", e => { if (!THREE_D()) return; dragging = true; lastX = e.clientX; lastY = e.clientY; try { plate.setPointerCapture(e.pointerId); } catch (_) {} });
   plate.addEventListener("pointermove", e => { if (!dragging) return; yaw += (e.clientX - lastX) * 0.01; pitch += (e.clientY - lastY) * 0.01; pitch = Math.max(-1.45, Math.min(1.45, pitch)); lastX = e.clientX; lastY = e.clientY; });
   const endDrag = () => { dragging = false; };
   plate.addEventListener("pointerup", endDrag); plate.addEventListener("pointercancel", endDrag); plate.addEventListener("pointerleave", endDrag);
@@ -184,16 +227,27 @@ export function startResonanceEngine() {
     }
   }
 
-  const FACT = [1]; for (let i = 1; i <= 30; i++) FACT[i] = FACT[i - 1] * i;
   function besselJ(m, x) {
     x = Math.abs(x);
-    if (x < 7) { const h = x / 2; let term = Math.pow(h, m) / FACT[m], sum = term; for (let k = 1; k < 18; k++) { term *= -(h * h) / (k * (k + m)); sum += term; if (Math.abs(term) < 1e-8) break; } return sum; }
+    m = Math.max(0, Math.round(m));
+    if (x < 8) {
+      const h = x / 2;
+      let term = 1;
+      for (let i = 1; i <= m; i++) term *= h / i;
+      let sum = term;
+      for (let k = 1; k < 40; k++) {
+        term *= -(h * h) / (k * (k + m));
+        sum += term;
+        if (Math.abs(term) < 1e-10) break;
+      }
+      return sum;
+    }
     return Math.sqrt(2 / (Math.PI * x)) * Math.cos(x - m * Math.PI / 2 - Math.PI / 4);
   }
   function modeNumbers(f) {
-    const base = f / 55;
-    let n = Math.max(1, Math.min(MODE_MAX, Math.round(1 + base * 2.2)));
-    let m = Math.max(1, Math.min(MODE_MAX, Math.round(1 + base * 1.4) + 1));
+    const t = Math.log(Math.max(f, FMIN) / FMIN) / Math.log(FMAX / FMIN);
+    let n = Math.max(1, Math.min(MODE_MAX, Math.round(1 + t * 220)));
+    let m = Math.max(1, Math.min(MODE_MAX, Math.round(2 + t * 140)));
     if (n === m) { m = Math.min(MODE_MAX, m + 1); if (n === m) n = Math.max(1, n - 1); }
     return { n, m };
   }
@@ -211,7 +265,7 @@ export function startResonanceEngine() {
     return Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
   }
 
-  let grains = []; const GRAINS = reduce ? 2200 : 4800;
+  let grains = []; const GRAINS = reduce ? 2400 : 6200;
   function seedGrains() { grains = new Array(GRAINS); for (let i = 0; i < GRAINS; i++) grains[i] = { x: Math.random(), y: Math.random() }; }
   seedGrains();
 
@@ -255,7 +309,7 @@ export function startResonanceEngine() {
   let hPhase = 0;
   function drawHarmono(w, h, n, m) {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
-    if (!paused && !reduce) hPhase += 0.004;
+    if (!paused && !reduce) hPhase += 0.0015 * (paceVal / 3);
     const a = Math.max(1, n), b = Math.max(1, m);
     const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42;
     const dt = 0.22 / Math.max(a, b, 2), STEPS = 7200, decay = 3.6 / (STEPS * dt), p = hPhase + Math.PI / 2;
@@ -279,7 +333,7 @@ export function startResonanceEngine() {
   function drawCurve3D(w, h, n, m, p) {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
     build3(n, m, p);
-    if (!paused && !dragging && !reduce) yaw += 0.006;
+    if (!paused && !dragging && !reduce) yaw += spinRate();
     const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.40;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
     const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1;
@@ -303,33 +357,48 @@ export function startResonanceEngine() {
     if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; pSlider.value = p; pLabel.textContent = p; }
   }
 
-  function buildSurface(n, m) {
-    const key = n + "|" + m; if (key === surfKey && surfH) return; surfKey = key;
+  function heightAt(kind, n, m, x, y) {
+    if (kind === "drum") {
+      const X = 2 * x - 1, Y = 2 * y - 1, r = Math.sqrt(X * X + Y * Y);
+      if (r > 1) return NaN;
+      return besselJ(m, (2.4 * n + 1.8) * r) * Math.cos(m * Math.atan2(Y, X));
+    }
+    return Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
+  }
+  function numOr(v, d) { return Number.isFinite(v) ? v : d; }
+  function buildSurface(n, m, kind) {
+    kind = kind || "plate";
+    const key = kind + "|" + n + "|" + m; if (key === surfKey && surfH) return; surfKey = key;
     const G = GS, W = G + 1;
     surfH = new Float32Array(W * W);
-    for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { const x = i / G, y = j / G; surfH[j * W + i] = Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y); } }
+    for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { surfH[j * W + i] = heightAt(kind, n, m, i / G, j / G); } }
     surfNX = new Float32Array(W * W); surfNY = new Float32Array(W * W); surfNZ = new Float32Array(W * W);
     const amp = 0.9, d = 1 / G;
     for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) {
-      const hL = surfH[j * W + Math.max(0, i - 1)], hR = surfH[j * W + Math.min(W - 1, i + 1)];
-      const hD = surfH[Math.max(0, j - 1) * W + i], hU = surfH[Math.min(W - 1, j + 1) * W + i];
+      if (!Number.isFinite(surfH[j * W + i])) { surfNX[j * W + i] = 0; surfNY[j * W + i] = 0; surfNZ[j * W + i] = 1; continue; }
+      const hL = numOr(surfH[j * W + Math.max(0, i - 1)], surfH[j * W + i]);
+      const hR = numOr(surfH[j * W + Math.min(W - 1, i + 1)], surfH[j * W + i]);
+      const hD = numOr(surfH[Math.max(0, j - 1) * W + i], surfH[j * W + i]);
+      const hU = numOr(surfH[Math.min(W - 1, j + 1) * W + i], surfH[j * W + i]);
       const dzx = (hR - hL) * amp / (2 * d), dzy = (hU - hD) * amp / (2 * d);
       let nx = -dzx, ny = -dzy, nz = 1, L = Math.hypot(nx, ny, nz) || 1;
       surfNX[j * W + i] = nx / L; surfNY[j * W + i] = ny / L; surfNZ[j * W + i] = nz / L;
     } }
   }
-  function drawSurface(w, h, n, m) {
+  function drawSurface(w, h, n, m, kind) {
+    kind = kind || "plate";
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
-    buildSurface(n, m);
-    if (!paused && !dragging && !reduce) yaw += 0.005;
+    buildSurface(n, m, kind);
+    if (!paused && !dragging && !reduce) yaw += spinRate();
     const G = GS, W = G + 1, amp = 0.9;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
-    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.62;
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * (kind === "drum" ? 0.58 : 0.62);
     const Lx = 0.35, Ly = 0.45, Lz = 0.82;
     const px = new Float32Array(W * W), py = new Float32Array(W * W), pz = new Float32Array(W * W);
     const nrx = new Float32Array(W * W), nry = new Float32Array(W * W), nrz = new Float32Array(W * W);
     for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { const idx = j * W + i;
-      const mx = (i / G - 0.5), my = surfH[idx] * amp * 0.5, mz = (j / G - 0.5);
+      const hgt = Number.isFinite(surfH[idx]) ? surfH[idx] : 0;
+      const mx = (i / G - 0.5), my = hgt * amp * 0.5, mz = (j / G - 0.5);
       const x1 = mx * ca + mz * sa, z1 = -mx * sa + mz * ca, y2 = my * cb - z1 * sb, z2 = my * sb + z1 * cb;
       px[idx] = cx + fx * R * x1; py[idx] = cy - fy * R * y2; pz[idx] = z2;
       const nX = surfNX[idx], nY = surfNZ[idx], nZ = surfNY[idx];
@@ -339,6 +408,7 @@ export function startResonanceEngine() {
     const quads = [];
     for (let j = 0; j < G; j++) { for (let i = 0; i < G; i++) {
       const a = j * W + i, b = j * W + i + 1, c = (j + 1) * W + i + 1, dd = (j + 1) * W + i;
+      if (kind === "drum" && (!Number.isFinite(surfH[a]) || !Number.isFinite(surfH[b]) || !Number.isFinite(surfH[c]) || !Number.isFinite(surfH[dd]))) continue;
       const depth = (pz[a] + pz[b] + pz[c] + pz[dd]) * 0.25, hAvg = (surfH[a] + surfH[b] + surfH[c] + surfH[dd]) * 0.5;
       let nx = nrx[a] + nrx[b] + nrx[c] + nrx[dd], ny = nry[a] + nry[b] + nry[c] + nry[dd], nz = nrz[a] + nrz[b] + nrz[c] + nrz[dd];
       const Ln = Math.hypot(nx, ny, nz) || 1; let diff = (nx * Lx + ny * Ly + nz * Lz) / Ln; diff = 0.4 + 0.72 * Math.max(0, diff);
@@ -355,7 +425,51 @@ export function startResonanceEngine() {
       pctx.fillStyle = "rgb(" + (r | 0) + "," + (g | 0) + "," + (b | 0) + ")"; pctx.strokeStyle = pctx.fillStyle; pctx.lineWidth = 1;
       pctx.beginPath(); pctx.moveTo(px[Q.a], py[Q.a]); pctx.lineTo(px[Q.b], py[Q.b]); pctx.lineTo(px[Q.c], py[Q.c]); pctx.lineTo(px[Q.d], py[Q.d]); pctx.closePath(); pctx.fill(); pctx.stroke();
     }
-    modeNM.textContent = "surface · " + n + "×" + m;
+    modeNM.textContent = (kind === "drum" ? "3D drum" : "surface") + " · " + n + "×" + m;
+    if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; }
+  }
+
+  function buildOrb(n, m) {
+    const key = n + "|" + m; if (key === orbKey && orbPts.length) return; orbKey = key;
+    const N = 3600, ga = Math.PI * (3 - Math.sqrt(5));
+    orbPts = new Array(N);
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2;
+      const radXY = Math.sqrt(Math.max(0, 1 - y * y));
+      const phi = i * ga;
+      const x = Math.cos(phi) * radXY, z = Math.sin(phi) * radXY;
+      const theta = Math.acos(Math.max(-1, Math.min(1, y)));
+      const disp = Math.cos(n * theta) * Math.cos(m * Math.atan2(z, x));
+      const rad = 0.68 + 0.32 * disp;
+      orbPts[i] = [x * rad, y * rad, z * rad, disp];
+    }
+  }
+  function drawOrb(w, h, n, m) {
+    pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
+    buildOrb(n, m);
+    if (!paused && !dragging && !reduce) yaw += spinRate();
+    const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42;
+    const pts = new Array(orbPts.length);
+    for (let i = 0; i < orbPts.length; i++) {
+      const P = orbPts[i], x = P[0], y = P[1], z = P[2];
+      const x1 = x * ca + z * sa, z1 = -x * sa + z * ca;
+      const y2 = y * cb - z1 * sb, z2 = y * sb + z1 * cb;
+      pts[i] = { X: cx + fx * R * x1, Y: cy - fy * R * y2, z: z2, v: P[3] };
+    }
+    pts.sort((a, b) => a.z - b.z);
+    for (let i = 0; i < pts.length; i++) {
+      const P = pts[i];
+      let t = (P.z / 1.6 + 1) / 2; if (t < 0) t = 0; else if (t > 1) t = 1;
+      let hn = invert ? -P.v : P.v;
+      let r, g, b;
+      if (hn >= 0) { r = 12 + 28 * t; g = 105 + 98 * t; b = 182 + 40 * t; }
+      else { r = 255; g = 110 + 40 * t; b = 100 + 30 * t; }
+      const a = 0.22 + 0.72 * t, s = 1.05 + 1.55 * t;
+      pctx.fillStyle = "rgba(" + (r | 0) + "," + (g | 0) + "," + (b | 0) + "," + a + ")";
+      pctx.fillRect(P.X, P.Y, s, s);
+    }
+    modeNM.textContent = "3D orb · " + n + "×" + m;
     if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; }
   }
 
@@ -370,17 +484,30 @@ export function startResonanceEngine() {
     catch (e) { finish(plate.toDataURL("image/png")); }
   }
   function exportOBJ() {
-    let obj = "# Frequency Finder — " + family + "\n", name;
+    let obj = "# Resonance — " + family + "\n", name;
     if (family === "curve3d") {
       const c = current3(); build3(c.n, c.m, c.p);
       for (const P of base3) obj += "v " + (P[0] * 50).toFixed(4) + " " + (P[1] * 50).toFixed(4) + " " + (P[2] * 50).toFixed(4) + "\n";
       obj += "l"; for (let i = 1; i <= base3.length; i++) obj += " " + i; obj += "\n";
       name = "frequency-curve-" + c.n + "-" + c.m + "-" + c.p + ".obj";
+    } else if (family === "orb") {
+      const nm = currentNM(); buildOrb(nm.n, nm.m);
+      for (const P of orbPts) obj += "v " + (P[0] * 50).toFixed(4) + " " + (P[1] * 50).toFixed(4) + " " + (P[2] * 50).toFixed(4) + "\n";
+      name = "frequency-orb-" + nm.n + "-" + nm.m + ".obj";
     } else {
-      const nm = currentNM(); buildSurface(nm.n, nm.m); const G = GS, W = G + 1, amp = 0.9;
-      for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { const X = (i / G - 0.5) * 100, Yy = surfH[j * W + i] * amp * 0.5 * 100, Z = (j / G - 0.5) * 100; obj += "v " + X.toFixed(3) + " " + Yy.toFixed(3) + " " + Z.toFixed(3) + "\n"; } }
-      for (let j = 0; j < G; j++) { for (let i = 0; i < G; i++) { const a = j * W + i + 1, b = j * W + i + 2, c = (j + 1) * W + i + 2, d = (j + 1) * W + i + 1; obj += "f " + a + " " + b + " " + c + " " + d + "\n"; } }
-      name = "frequency-surface-" + nm.n + "-" + nm.m + ".obj";
+      const kind = family === "drum3d" ? "drum" : "plate";
+      const nm = currentNM(); buildSurface(nm.n, nm.m, kind); const G = GS, W = G + 1, amp = 0.9;
+      for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) {
+        const hgt = Number.isFinite(surfH[j * W + i]) ? surfH[j * W + i] : 0;
+        const X = (i / G - 0.5) * 100, Yy = hgt * amp * 0.5 * 100, Z = (j / G - 0.5) * 100;
+        obj += "v " + X.toFixed(3) + " " + Yy.toFixed(3) + " " + Z.toFixed(3) + "\n";
+      } }
+      for (let j = 0; j < G; j++) { for (let i = 0; i < G; i++) {
+        const ia = j * W + i, ib = j * W + i + 1, ic = (j + 1) * W + i + 1, id = (j + 1) * W + i;
+        if (kind === "drum" && (!Number.isFinite(surfH[ia]) || !Number.isFinite(surfH[ib]) || !Number.isFinite(surfH[ic]) || !Number.isFinite(surfH[id]))) continue;
+        obj += "f " + (ia + 1) + " " + (ib + 1) + " " + (ic + 1) + " " + (id + 1) + "\n";
+      } }
+      name = "frequency-" + (kind === "drum" ? "drum" : "surface") + "-" + nm.n + "-" + nm.m + ".obj";
     }
     downloadBlob(name, obj, "text/plain");
   }
@@ -388,7 +515,9 @@ export function startResonanceEngine() {
   function drawPlate() {
     const { w, h } = PL;
     if (family === "curve3d") { const c = current3(); drawCurve3D(w, h, c.n, c.m, c.p); return; }
-    if (family === "surface") { const s = currentNM(); drawSurface(w, h, s.n, s.m); return; }
+    if (family === "surface") { const s = currentNM(); drawSurface(w, h, s.n, s.m, "plate"); return; }
+    if (family === "drum3d") { const s = currentNM(); drawSurface(w, h, s.n, s.m, "drum"); return; }
+    if (family === "orb") { const s = currentNM(); drawOrb(w, h, s.n, s.m); return; }
     const { n, m } = currentNM();
     if (family === "harmono") { drawHarmono(w, h, n, m); return; }
     if (plateView === "field") {
@@ -396,9 +525,12 @@ export function startResonanceEngine() {
       pctx.save(); applyFlip(w, h); pctx.imageSmoothingEnabled = true; pctx.drawImage(fieldCanvas, 0, 0, w, h); pctx.restore();
       drawMirrorLines(w, h); label(n, m); return;
     }
-    pctx.fillStyle = "rgba(244,251,255,0.30)"; pctx.fillRect(0, 0, w, h);
-    const step = reduce ? 0.014 : 0.022;
-    const grainSize = reduce ? 1.0 : 1.15;
+    pctx.fillStyle = "rgba(244,251,255,0.16)"; pctx.fillRect(0, 0, w, h);
+    const dens = 1 + (n + m) / 70;
+    const step = ((reduce ? 0.007 : 0.010) * (paceVal / 3)) / dens;
+    const jitter = (0.00105 * (paceVal / 3)) / (1 + (n + m) / 110);
+    const wander = 0.018 / dens;
+    const grainSize = reduce ? 1.0 : (n + m > 80 ? 0.95 : 1.15);
     pctx.save(); applyFlip(w, h);
     pctx.fillStyle = invert ? "rgba(255,110,92,0.85)" : "rgba(13,88,151,0.82)";
     for (let i = 0; i < grains.length; i++) {
@@ -407,9 +539,9 @@ export function startResonanceEngine() {
         const cur = Math.abs(fieldVal(p.x, p.y, n, m));
         const nx = Math.min(1, Math.max(0, p.x + (Math.random() * 2 - 1) * step));
         const ny = Math.min(1, Math.max(0, p.y + (Math.random() * 2 - 1) * step));
-        if (Math.abs(fieldVal(nx, ny, n, m)) < cur || Math.random() < 0.04) { p.x = nx; p.y = ny; }
-        p.x = Math.min(1, Math.max(0, p.x + (Math.random() * 2 - 1) * 0.003));
-        p.y = Math.min(1, Math.max(0, p.y + (Math.random() * 2 - 1) * 0.003));
+        if (Math.abs(fieldVal(nx, ny, n, m)) < cur || Math.random() < wander) { p.x = nx; p.y = ny; }
+        p.x = Math.min(1, Math.max(0, p.x + (Math.random() * 2 - 1) * jitter));
+        p.y = Math.min(1, Math.max(0, p.y + (Math.random() * 2 - 1) * jitter));
       }
       pctx.fillRect(p.x * w, p.y * h, grainSize, grainSize);
     }
@@ -418,11 +550,11 @@ export function startResonanceEngine() {
   function label(n, m) { modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m); syncModeSliders(n, m); }
 
   const SWEEP_LO = 240, SWEEP_HI = 1000;
-  let sweepDir = -1, sweepSpeedVal = 5;
+  let sweepDir = -1, sweepSpeedVal = 3;
   let rafId = 0;
   function loop() {
     if (sweeping && !paused) {
-      const speed = 0.3 + sweepSpeedVal * 0.35;
+      const speed = 0.12 + sweepSpeedVal * 0.16;
       let v = +freqSlider.value + sweepDir * speed;
       if (v >= SWEEP_HI) { v = SWEEP_HI; sweepDir = -1; } if (v <= SWEEP_LO) { v = SWEEP_LO; sweepDir = 1; }
       freqSlider.value = v; freq = sliderToFreq(v); paintFreq(); retune();
@@ -461,8 +593,8 @@ export function startResonanceEngine() {
       const resp = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: genImgData, prompt, strength: (+genStrength.value) / 100 }) });
       let j = {}; try { j = await resp.json(); } catch (_) {}
       if (resp.ok && j.url) { genOut.src = j.url; genStatus.textContent = ""; genResultWrap.hidden = false; }
-      else { genForm.style.display = ""; genStatus.textContent = (j && j.error) ? j.error : ("Render failed (" + resp.status + "). Is the API key set?"); }
-    } catch (err) { genForm.style.display = ""; genStatus.textContent = "Can't reach the AI server — deploy to Vercel first (localhost won't work)."; }
+      else { genForm.style.display = ""; genStatus.textContent = (j && j.error) ? j.error : ("Render failed (" + resp.status + "). Add GEMINI_API_KEY in Vercel, then Redeploy."); }
+    } catch (err) { genForm.style.display = ""; genStatus.textContent = "Can't reach the AI server — the live Vercel site is required (localhost won't call Gemini)."; }
     genGo.disabled = false;
   }
   genGo.addEventListener("click", generate);
