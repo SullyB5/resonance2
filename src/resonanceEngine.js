@@ -11,7 +11,7 @@ export function startResonanceEngine() {
   let freq = sliderToFreq(500), wave = "sine", vol = 0.40, mode = "pure";
   let beatDetune = 4;
   const BEAT_DETUNE = { slow: 1.2, heart: 2, pulse: 4, flutter: 8, wobble: 14 };
-  let showMirror = false, plateView = "sand", invert = false, paused = false;
+  let plateView = "sand", invert = false, paused = false;
   let patternSource = "manual", manN = 6, manM = 4, flipH = false, flipV = false, family = "orb", manP = 5;
   let yaw = 0.7, pitch = 0.42, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
   let orbPts = [], orbKey = "";
@@ -132,8 +132,7 @@ export function startResonanceEngine() {
     else applySound("tone", "pure");
   }));
 
-  const mirrorBtn = $("mirror"), invertBtn = $("invert"), pauseBtn = $("pause");
-  mirrorBtn.addEventListener("click", () => { showMirror = !showMirror; mirrorBtn.setAttribute("aria-pressed", showMirror); });
+  const invertBtn = $("invert"), pauseBtn = $("pause");
   invertBtn.addEventListener("click", () => { invert = !invert; invertBtn.setAttribute("aria-pressed", invert); lastFieldKey = ""; });
   pauseBtn.addEventListener("click", () => { paused = !paused; pauseBtn.setAttribute("aria-pressed", paused); pauseBtn.textContent = paused ? "▶ resume" : "⏸ pause"; });
   document.querySelectorAll("#views button").forEach(b => b.addEventListener("click", () => {
@@ -167,14 +166,10 @@ export function startResonanceEngine() {
     const onPlates = appPage === "plates";
     const psourceBlock = $("psourceBlock");
     const sweepBlock = $("sweepBlock");
-    const hzBlock = $("hzBlock");
     const viewGroup = $("views");
-    const mirrorBtn = $("mirror");
     if (psourceBlock) psourceBlock.hidden = !onPlates;
     if (sweepBlock) sweepBlock.hidden = !onPlates;
-    if (hzBlock) hzBlock.hidden = onPlates;
     if (viewGroup) viewGroup.hidden = !onPlates || !pitchPattern;
-    if (mirrorBtn) mirrorBtn.hidden = !onPlates || !pitchPattern;
     if (!pitchPattern) {
       if (patternSource === "pitch") setPatternSource("manual");
       else if (sweeping) { sweeping = false; paintSweep(); }
@@ -542,11 +537,6 @@ export function startResonanceEngine() {
     fctx.putImageData(fieldImg, 0, 0);
   }
 
-  function drawMirrorLines(w, h) {
-    if (!showMirror) return;
-    pctx.save(); pctx.strokeStyle = "rgba(12,109,182,0.55)"; pctx.lineWidth = 1.4; pctx.setLineDash([6, 7]);
-    pctx.beginPath(); pctx.moveTo(0, 0); pctx.lineTo(w, h); pctx.moveTo(w, 0); pctx.lineTo(0, h); pctx.stroke(); pctx.restore();
-  }
   function applyFlip(w, h) { if (flipH || flipV) { pctx.translate(flipH ? w : 0, flipV ? h : 0); pctx.scale(flipH ? -1 : 1, flipV ? -1 : 1); } }
 
   let hPhase = 0;
@@ -575,7 +565,7 @@ export function startResonanceEngine() {
       }
       prev = [X, Y];
     }
-    drawMirrorLines(w, h); label(n, m);
+    label(n, m);
   }
 
   function build3(n, m, p) {
@@ -814,7 +804,7 @@ export function startResonanceEngine() {
       const dw = w * viewZoom, dh = h * viewZoom;
       pctx.drawImage(fieldCanvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
       pctx.restore();
-      drawMirrorLines(w, h); label(n, m); return;
+      label(n, m); return;
     }
     pctx.fillStyle = "rgba(244,251,255,0.1)"; pctx.fillRect(0, 0, w, h);
     const dens = 1 + (n + m) / 65;
@@ -839,7 +829,7 @@ export function startResonanceEngine() {
       const gs = Math.max(1.1, grainSize * Math.min(1.15, 0.78 + viewZoom * 0.14));
       pctx.fillRect(zx * w, zy * h, gs, gs);
     }
-    pctx.restore(); drawMirrorLines(w, h); label(n, m);
+    pctx.restore(); label(n, m);
   }
   function label(n, m) {
     modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m);

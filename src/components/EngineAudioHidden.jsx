@@ -13,6 +13,7 @@ export default function EngineAudioHidden() {
         <button type="button" data-m="beat" aria-pressed="false">beat</button>
         <button type="button" data-m="chord" aria-pressed="false">chord</button>
       </div>
+      <input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="tone frequency" />
     </div>
   )
 }
