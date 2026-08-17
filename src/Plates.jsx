@@ -3,11 +3,40 @@ export default function Plates() {
     <section className="card panel col-pattern">
       <h2 className="panel-heading">Plates</h2>
       <div className="pattern-panel-body">
-        <h3 className="plabel">Plate type</h3>
-        <div className="seg fam" id="familiesPlates" role="group" aria-label="plate family">
-          <button type="button" data-f="square" aria-pressed="true">square plate</button>
-          <button type="button" data-f="round" aria-pressed="false">round drum</button>
-          <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
+        <div className="plates-sounds">
+          <div className="plates-seg">
+            <h3 className="plabel">Plate type</h3>
+            <div className="seg fam" id="familiesPlates" role="group" aria-label="plate family">
+              <button type="button" data-f="square" aria-pressed="true">square plate</button>
+              <button type="button" data-f="round" aria-pressed="false">round drum</button>
+              <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
+            </div>
+          </div>
+          <div className="hz-side">
+            <span className="lab">Hz</span>
+            <input id="freqPlates" type="range" min="0" max="1000" defaultValue="500" aria-label="frequency in hertz" />
+            <span className="hz-side-val" id="hzSideVal">220</span>
+          </div>
+          <div className="sounds-seg">
+            <h3 className="plabel">Sounds</h3>
+            <h4 className="slabel">Tones</h4>
+            <div className="seg" id="tones" role="group" aria-label="tones">
+              <button type="button" data-tone="pure" aria-pressed="true">pure</button>
+              <button type="button" data-tone="harmonics" aria-pressed="false">harmonics</button>
+              <button type="button" data-tone="fifth" aria-pressed="false">fifth</button>
+              <button type="button" data-tone="octave" aria-pressed="false">octave</button>
+              <button type="button" data-tone="chord" aria-pressed="false">chord</button>
+            </div>
+            <h4 className="slabel">Beats</h4>
+            <div className="seg warm" id="beats" role="group" aria-label="beats">
+              <button type="button" data-beat="slow" aria-pressed="false">slow</button>
+              <button type="button" data-beat="heart" aria-pressed="false">heart</button>
+              <button type="button" data-beat="pulse" aria-pressed="false">pulse</button>
+              <button type="button" data-beat="flutter" aria-pressed="false">flutter</button>
+              <button type="button" data-beat="wobble" aria-pressed="false">wobble</button>
+            </div>
+            <div className="hint" id="modeHint">One clean tone. Slide Hz and watch the pool rearrange.</div>
+          </div>
         </div>
         <div id="psourceBlock">
           <h3 className="plabel">Pattern source</h3>

@@ -8,7 +8,9 @@ export function startResonanceEngine() {
   const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const noteFor = (f) => noteNames[((Math.round(69 + 12 * Math.log2(f / 440)) % 12) + 12) % 12] + (Math.floor(Math.round(69 + 12 * Math.log2(f / 440)) / 12) - 1);
 
-  let freq = sliderToFreq(500), wave = "sine", vol = 0.40, mode = "tone";
+  let freq = sliderToFreq(500), wave = "sine", vol = 0.40, mode = "pure";
+  let beatDetune = 4;
+  const BEAT_DETUNE = { slow: 1.2, heart: 2, pulse: 4, flutter: 8, wobble: 14 };
   let showMirror = false, plateView = "sand", invert = false, paused = false;
   let patternSource = "manual", manN = 6, manM = 4, flipH = false, flipV = false, family = "orb", manP = 5;
   let yaw = 0.7, pitch = 0.42, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
@@ -36,8 +38,10 @@ export function startResonanceEngine() {
   function voiceSpecs() {
     switch (mode) {
       case "harmonics": { const a = []; for (let n = 1; n <= 6; n++) a.push({ ratio: n, gain: 0.9 / n }); return a; }
-      case "beat": return [{ ratio: 1, gain: 0.5 }, { ratio: 1, gain: 0.5, detuneHz: 4 }];
+      case "fifth": return [{ ratio: 1, gain: 0.5 }, { ratio: 3 / 2, gain: 0.42 }];
+      case "octave": return [{ ratio: 1, gain: 0.5 }, { ratio: 2, gain: 0.4 }];
       case "chord": return [{ ratio: 1, gain: 0.42 }, { ratio: 5 / 4, gain: 0.36 }, { ratio: 3 / 2, gain: 0.36 }];
+      case "beat": return [{ ratio: 1, gain: 0.5 }, { ratio: 1, gain: 0.5, detuneHz: beatDetune }];
       default: return [{ ratio: 1, gain: 0.8 }];
     }
   }
@@ -59,10 +63,16 @@ export function startResonanceEngine() {
   const freqSlider = $("freq"), volSlider = $("vol"), freqVal = $("freqVal"), noteName = $("noteName");
   const playBtn = $("play"), playTxt = $("playTxt"), modeNM = $("modeNM");
   const hints = {
-    tone: "One clean tone. Slide Pitch and watch the pool rearrange.",
+    pure: "One clean tone. Slide Hz and watch the pool rearrange.",
     harmonics: "Six tones stacked 1·2·3·4·5·6 — the recipe for a full sound. Look at the mix.",
-    beat: "Two tones a few Hz apart drift in and out of step, so it throbs. Listen for the pulse.",
-    chord: "Three notes at once — a major chord. Busier wave; the pool follows the lowest note."
+    fifth: "Root plus a fifth. Open and hollow, like two plates ringing together.",
+    octave: "The same note an octave up. Simple and wide.",
+    chord: "Three notes at once — a major chord. Busier wave; the pool follows the lowest note.",
+    slow: "Two tones 1.2 Hz apart. A slow, rolling throb.",
+    heart: "A gentle 2 Hz beat, like a calm pulse.",
+    pulse: "A clear 4 Hz beat. Listen for the waver.",
+    flutter: "An 8 Hz flutter — faster beating.",
+    wobble: "A wide 14 Hz wobble. Almost a growl."
   };
 
   let sweeping = false;
@@ -73,11 +83,18 @@ export function startResonanceEngine() {
     sweepBtn.classList.toggle("active", sweeping);
     sweepBtn.textContent = sweeping ? "sweeping…" : "sweep";
   }
-  function paintFreq() { freqVal.textContent = Math.round(freq); noteName.textContent = noteFor(freq); }
+  function paintFreq() {
+    const hz = Math.round(freq);
+    if (freqVal) freqVal.textContent = hz;
+    if (noteName) noteName.textContent = noteFor(freq);
+    const side = $("hzSideVal");
+    if (side) side.textContent = hz;
+  }
   function paintPlay() { playBtn.classList.toggle("playing", playing); playTxt.textContent = playing ? "Stop" : "Play"; playBtn.setAttribute("aria-pressed", playing); }
 
   function applyFreqFromSlider(v) {
     freq = sliderToFreq(v);
+    [$("freq"), $("freqPlates")].forEach(s => { if (s && String(s.value) !== String(v)) s.value = v; });
     paintFreq();
     retune();
     if (patternSource === "pitch" && USES_PITCH()) invalidatePattern();
@@ -92,9 +109,27 @@ export function startResonanceEngine() {
     wave = b.dataset.w; document.querySelectorAll("#waves button").forEach(x => x.setAttribute("aria-pressed", x === b));
     if (playing) { buildVoices(); master.gain.setValueAtTime(vol, ctx.currentTime); }
   }));
-  document.querySelectorAll("#modes button").forEach(b => b.addEventListener("click", () => {
-    mode = b.dataset.m; document.querySelectorAll("#modes button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  function applySound(kind, name) {
+    document.querySelectorAll("#tones button").forEach(x => x.setAttribute("aria-pressed", kind === "tone" && x.dataset.tone === name));
+    document.querySelectorAll("#beats button").forEach(x => x.setAttribute("aria-pressed", kind === "beat" && x.dataset.beat === name));
+    if (kind === "beat") {
+      mode = "beat";
+      beatDetune = BEAT_DETUNE[name] || 4;
+    } else {
+      mode = name;
+    }
+    const hiddenMode = kind === "beat" ? "beat" : (name === "harmonics" || name === "chord" ? name : "tone");
+    document.querySelectorAll("#modes button").forEach(x => x.setAttribute("aria-pressed", x.dataset.m === hiddenMode));
+    const hint = $("modeHint");
+    if (hint) hint.textContent = hints[name] || hints.pure;
     if (playing) { buildVoices(); master.gain.setValueAtTime(vol, ctx.currentTime); }
+  }
+  document.querySelectorAll("#modes button").forEach(b => b.addEventListener("click", () => {
+    const m = b.dataset.m;
+    if (m === "beat") applySound("beat", "pulse");
+    else if (m === "harmonics") applySound("tone", "harmonics");
+    else if (m === "chord") applySound("tone", "chord");
+    else applySound("tone", "pure");
   }));
 
   const mirrorBtn = $("mirror"), invertBtn = $("invert"), pauseBtn = $("pause");
@@ -132,10 +167,12 @@ export function startResonanceEngine() {
     const onPlates = appPage === "plates";
     const psourceBlock = $("psourceBlock");
     const sweepBlock = $("sweepBlock");
+    const hzBlock = $("hzBlock");
     const viewGroup = $("views");
     const mirrorBtn = $("mirror");
     if (psourceBlock) psourceBlock.hidden = !onPlates;
     if (sweepBlock) sweepBlock.hidden = !onPlates;
+    if (hzBlock) hzBlock.hidden = onPlates;
     if (viewGroup) viewGroup.hidden = !onPlates || !pitchPattern;
     if (mirrorBtn) mirrorBtn.hidden = !onPlates || !pitchPattern;
     if (!pitchPattern) {
@@ -265,6 +302,17 @@ export function startResonanceEngine() {
       paintSweep();
     }));
     bindOnce($("sweepSpeed"), (el) => el.addEventListener("input", () => { sweepSpeedVal = +el.value; }));
+    bindOnce($("freqPlates"), (el) => {
+      el.value = freqSlider ? freqSlider.value : el.value;
+      el.addEventListener("input", e => applyFreqFromSlider(+e.target.value));
+      el.addEventListener("change", e => applyFreqFromSlider(+e.target.value));
+    });
+    document.querySelectorAll("#tones button").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => applySound("tone", btn.dataset.tone));
+    }));
+    document.querySelectorAll("#beats button").forEach(b => bindOnce(b, (btn) => {
+      btn.addEventListener("click", () => applySound("beat", btn.dataset.beat));
+    }));
     wireColorInput($("vizBg"), "bg");
     wireColorInput($("vizModel"), "model");
     wireColorInput($("vizAccent"), "accent");
@@ -809,7 +857,10 @@ export function startResonanceEngine() {
       const speed = 0.12 + sweepSpeedVal * 0.16;
       let v = +freqSlider.value + sweepDir * speed;
       if (v >= SWEEP_HI) { v = SWEEP_HI; sweepDir = -1; } if (v <= SWEEP_LO) { v = SWEEP_LO; sweepDir = 1; }
-      freqSlider.value = v; freq = sliderToFreq(v); paintFreq(); retune();
+      freqSlider.value = v;
+      const fp = $("freqPlates");
+      if (fp) fp.value = v;
+      freq = sliderToFreq(v); paintFreq(); retune();
     }
     drawPlate();
     rafId = requestAnimationFrame(loop);
@@ -820,6 +871,7 @@ export function startResonanceEngine() {
     requestAnimationFrame(() => {
       bindPageControls();
       onResize();
+      paintFreq();
       if (appPage === "plates") {
         if (!USES_PITCH()) applyState({ family: "square", n: 6, m: 4, view: "sand" });
         setPatternSource("pitch");
