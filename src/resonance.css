@@ -561,6 +561,10 @@ header {
   margin: 0;
 }
 
+.stage-modes.locked {
+  opacity: 0.46;
+}
+
 .plates-sounds {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 52px;

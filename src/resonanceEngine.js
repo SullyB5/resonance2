@@ -103,10 +103,7 @@ export function startResonanceEngine() {
     [$("freq"), $("freqPlates")].forEach(s => { if (s && String(s.value) !== String(v)) s.value = v; });
     paintFreq();
     retune();
-    if (patternSource === "pitch" && USES_PITCH()) {
-      syncPitchModeSliders();
-      invalidatePattern();
-    }
+    if (patternSource === "pitch" && USES_PITCH()) invalidatePattern();
   }
   if (freqSlider) {
     freqSlider.addEventListener("input", e => applyFreqFromSlider(+e.target.value));
@@ -161,8 +158,9 @@ export function startResonanceEngine() {
     document.querySelectorAll("#familiesPlates button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
   }
   function modeCap() { return USES_PITCH() ? SAND_MODE_MAX : (isShapesFamily(family) ? 120 : MODE_MAX); }
-  function setPatternSource(src) {
-    if (src === "manual" && patternSource === "pitch" && USES_PITCH()) {
+  function setPatternSource(src, opts) {
+    const keepModes = opts && opts.keepModes;
+    if (!keepModes && src === "manual" && patternSource === "pitch" && USES_PITCH()) {
       const c = sandModesFromFreq(freq);
       manN = c.n; manM = c.m;
       if (nSlider) nSlider.value = String(manN);
@@ -176,8 +174,8 @@ export function startResonanceEngine() {
       sweeping = false;
       paintSweep();
     }
-    if (src === "pitch" && USES_PITCH()) syncPitchModeSliders();
     updateHzLock();
+    updateModeLock();
     invalidatePattern();
   }
   function updateHzLock() {
@@ -188,6 +186,11 @@ export function startResonanceEngine() {
     if (side) side.classList.toggle("locked", locked);
     if (note) note.hidden = !locked;
     if (fp) fp.setAttribute("aria-disabled", locked ? "true" : "false");
+  }
+  function updateModeLock() {
+    const locked = appPage === "plates" && patternSource === "pitch" && USES_PITCH();
+    const modes = $("stageModes");
+    if (modes) modes.classList.toggle("locked", locked);
   }
   function updateStageControls() {
     const pitchPattern = USES_PITCH();
@@ -204,16 +207,13 @@ export function startResonanceEngine() {
     }
     syncModeSliderCaps();
     updateHzLock();
+    updateModeLock();
   }
   function syncModeSliderCaps() {
     if (!nSlider || !mSlider) return;
     const cap = modeCap(), min = USES_PITCH() ? 2 : 1;
     nSlider.min = String(min); mSlider.min = String(min);
     nSlider.max = String(cap); mSlider.max = String(cap);
-    if (patternSource === "pitch" && USES_PITCH()) {
-      syncPitchModeSliders();
-      return;
-    }
     manN = Math.max(min, Math.min(cap, manN));
     manM = Math.max(min, Math.min(cap, manM));
     if (manN === manM) manM = Math.min(cap, manM + 1);
@@ -239,7 +239,7 @@ export function startResonanceEngine() {
     }
     nSlider.value = String(manN); mSlider.value = String(manM);
     nLabel.textContent = manN; mLabel.textContent = manM;
-    setPatternSource("manual");
+    setPatternSource("manual", { keepModes: true });
   }
   nSlider.addEventListener("input", () => setManualFromSliders("n"));
   mSlider.addEventListener("input", () => setManualFromSliders("m"));
@@ -252,22 +252,14 @@ export function startResonanceEngine() {
     if (n === m) m = Math.min(SAND_MODE_MAX, m + 1);
     return { n, m };
   }
-  function syncPitchModeSliders() {
-    if (patternSource !== "pitch" || !USES_PITCH() || !nSlider) return;
-    const c = sandModesFromFreq(freq);
-    nSlider.value = String(c.n);
-    mSlider.value = String(c.m);
-    nLabel.textContent = c.n;
-    mLabel.textContent = c.m;
-  }
   function currentNM() {
     if (patternSource === "pitch" && USES_PITCH()) return sandModesFromFreq(freq);
     return { n: manN, m: manM };
   }
 
   const pSlider = $("pSlider"), pLabel = $("pLabel"), zLine = $("zLine");
-  pSlider.addEventListener("input", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
-  pSlider.addEventListener("change", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
+  pSlider.addEventListener("input", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual", { keepModes: true }); });
+  pSlider.addEventListener("change", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual", { keepModes: true }); });
   function updateZLine() { zLine.style.display = family === "curve3d" ? "flex" : "none"; }
   function updateGrab() { plate.classList.toggle("grab", ROTATABLE()); }
   function updateModelChip() { $("saveModel").style.display = ROTATABLE() ? "inline-block" : "none"; }
@@ -297,7 +289,7 @@ export function startResonanceEngine() {
     if (s.flipV != null) { flipV = s.flipV; flipVBtn.setAttribute("aria-pressed", flipV); }
     resetViewForFamily();
     syncModeSliderCaps();
-    if (s.n != null || s.m != null || s.p != null) setPatternSource("manual");
+    if (s.n != null || s.m != null || s.p != null) setPatternSource("manual", { keepModes: true });
     else invalidatePattern();
     seedGrains();
     updateZLine(); updateGrab(); updateModelChip(); updateStageControls();
@@ -879,12 +871,6 @@ export function startResonanceEngine() {
   }
   function label(n, m) {
     modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m);
-    if (patternSource === "pitch" && USES_PITCH()) {
-      nSlider.value = String(n);
-      mSlider.value = String(m);
-      nLabel.textContent = n;
-      mLabel.textContent = m;
-    }
   }
 
   const SWEEP_LO = 240, SWEEP_HI = 1000;
