@@ -636,6 +636,22 @@ header {
   text-align: center;
 }
 
+.hz-lock-note {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hz-side.locked {
+  opacity: 0.46;
+}
+
+.hz-side.locked input[type="range"] {
+  cursor: pointer;
+}
+
 .pitch-row {
   display: flex;
   align-items: center;

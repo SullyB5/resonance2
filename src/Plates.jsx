@@ -12,10 +12,11 @@ export default function Plates() {
               <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
             </div>
           </div>
-          <div className="hz-side">
+          <div className="hz-side" id="hzSide">
             <span className="lab">Hz</span>
             <input id="freqPlates" type="range" min="0" max="1000" defaultValue="500" aria-label="frequency in hertz" />
             <span className="hz-side-val" id="hzSideVal">220</span>
+            <span className="hz-lock-note" id="hzLockNote" hidden>locked</span>
           </div>
           <div className="sounds-seg">
             <h3 className="plabel">Sounds</h3>

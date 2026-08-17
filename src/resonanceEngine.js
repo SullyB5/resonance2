@@ -93,11 +93,20 @@ export function startResonanceEngine() {
   function paintPlay() { playBtn.classList.toggle("playing", playing); playTxt.textContent = playing ? "Stop" : "Play"; playBtn.setAttribute("aria-pressed", playing); }
 
   function applyFreqFromSlider(v) {
+    if (appPage === "plates" && patternSource === "manual") {
+      const keep = freqSlider ? freqSlider.value : String(v);
+      const fp = $("freqPlates");
+      if (fp) fp.value = keep;
+      return;
+    }
     freq = sliderToFreq(v);
     [$("freq"), $("freqPlates")].forEach(s => { if (s && String(s.value) !== String(v)) s.value = v; });
     paintFreq();
     retune();
-    if (patternSource === "pitch" && USES_PITCH()) invalidatePattern();
+    if (patternSource === "pitch" && USES_PITCH()) {
+      syncPitchModeSliders();
+      invalidatePattern();
+    }
   }
   if (freqSlider) {
     freqSlider.addEventListener("input", e => applyFreqFromSlider(+e.target.value));
@@ -153,13 +162,32 @@ export function startResonanceEngine() {
   }
   function modeCap() { return USES_PITCH() ? SAND_MODE_MAX : (isShapesFamily(family) ? 120 : MODE_MAX); }
   function setPatternSource(src) {
+    if (src === "manual" && patternSource === "pitch" && USES_PITCH()) {
+      const c = sandModesFromFreq(freq);
+      manN = c.n; manM = c.m;
+      if (nSlider) nSlider.value = String(manN);
+      if (mSlider) mSlider.value = String(manM);
+      if (nLabel) nLabel.textContent = manN;
+      if (mLabel) mLabel.textContent = manM;
+    }
     patternSource = src;
     document.querySelectorAll("#psource button").forEach(x => x.setAttribute("aria-pressed", x.dataset.p === src));
     if (src === "manual" && sweeping) {
       sweeping = false;
       paintSweep();
     }
+    if (src === "pitch" && USES_PITCH()) syncPitchModeSliders();
+    updateHzLock();
     invalidatePattern();
+  }
+  function updateHzLock() {
+    const locked = appPage === "plates" && patternSource === "manual";
+    const side = $("hzSide");
+    const note = $("hzLockNote");
+    const fp = $("freqPlates");
+    if (side) side.classList.toggle("locked", locked);
+    if (note) note.hidden = !locked;
+    if (fp) fp.setAttribute("aria-disabled", locked ? "true" : "false");
   }
   function updateStageControls() {
     const pitchPattern = USES_PITCH();
@@ -175,12 +203,17 @@ export function startResonanceEngine() {
       else if (sweeping) { sweeping = false; paintSweep(); }
     }
     syncModeSliderCaps();
+    updateHzLock();
   }
   function syncModeSliderCaps() {
     if (!nSlider || !mSlider) return;
     const cap = modeCap(), min = USES_PITCH() ? 2 : 1;
     nSlider.min = String(min); mSlider.min = String(min);
     nSlider.max = String(cap); mSlider.max = String(cap);
+    if (patternSource === "pitch" && USES_PITCH()) {
+      syncPitchModeSliders();
+      return;
+    }
     manN = Math.max(min, Math.min(cap, manN));
     manM = Math.max(min, Math.min(cap, manM));
     if (manN === manM) manM = Math.min(cap, manM + 1);
@@ -218,6 +251,14 @@ export function startResonanceEngine() {
     let m = Math.max(2, Math.min(SAND_MODE_MAX, Math.round(2 + t * (SAND_MODE_MAX - 2) * 0.82)));
     if (n === m) m = Math.min(SAND_MODE_MAX, m + 1);
     return { n, m };
+  }
+  function syncPitchModeSliders() {
+    if (patternSource !== "pitch" || !USES_PITCH() || !nSlider) return;
+    const c = sandModesFromFreq(freq);
+    nSlider.value = String(c.n);
+    mSlider.value = String(c.m);
+    nLabel.textContent = c.n;
+    mLabel.textContent = c.m;
   }
   function currentNM() {
     if (patternSource === "pitch" && USES_PITCH()) return sandModesFromFreq(freq);
@@ -301,6 +342,11 @@ export function startResonanceEngine() {
       el.value = freqSlider ? freqSlider.value : el.value;
       el.addEventListener("input", e => applyFreqFromSlider(+e.target.value));
       el.addEventListener("change", e => applyFreqFromSlider(+e.target.value));
+    });
+    bindOnce($("hzSide"), (el) => {
+      el.addEventListener("pointerdown", () => {
+        if (patternSource === "manual") setPatternSource("pitch");
+      }, true);
     });
     document.querySelectorAll("#tones button").forEach(b => bindOnce(b, (btn) => {
       btn.addEventListener("click", () => applySound("tone", btn.dataset.tone));
@@ -834,6 +880,8 @@ export function startResonanceEngine() {
   function label(n, m) {
     modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m);
     if (patternSource === "pitch" && USES_PITCH()) {
+      nSlider.value = String(n);
+      mSlider.value = String(m);
       nLabel.textContent = n;
       mLabel.textContent = m;
     }
@@ -847,10 +895,7 @@ export function startResonanceEngine() {
       const speed = 0.12 + sweepSpeedVal * 0.16;
       let v = +freqSlider.value + sweepDir * speed;
       if (v >= SWEEP_HI) { v = SWEEP_HI; sweepDir = -1; } if (v <= SWEEP_LO) { v = SWEEP_LO; sweepDir = 1; }
-      freqSlider.value = v;
-      const fp = $("freqPlates");
-      if (fp) fp.value = v;
-      freq = sliderToFreq(v); paintFreq(); retune();
+      applyFreqFromSlider(v);
     }
     drawPlate();
     rafId = requestAnimationFrame(loop);
