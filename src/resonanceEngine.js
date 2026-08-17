@@ -626,7 +626,7 @@ export function startResonanceEngine() {
     const prompt = genPrompt.value.trim();
     if (!prompt) { genStatus.textContent = "Type a description first."; return; }
     genGo.disabled = true; genForm.style.display = "none"; genResultWrap.hidden = true;
-    genStatus.innerHTML = '<div class="gen-spin"></div>Dreaming up your image…';
+    genStatus.innerHTML = '<div class="gen-spin"></div>Generating image…';
     try {
       const resp = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: genImgData, prompt, strength: (+genStrength.value) / 100 }) });
       let j = {}; try { j = await resp.json(); } catch (_) {}
