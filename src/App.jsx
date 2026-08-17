@@ -6,10 +6,14 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [view, setView] = useState('studio')
 
-  useEffect(() => startResonanceEngine(), [])
+  useEffect(() => {
+    const stop = startResonanceEngine()
+    return stop
+  }, [])
 
   useEffect(() => {
-    if (view === 'studio') window.dispatchEvent(new Event('resize'))
+    window.dispatchEvent(new CustomEvent('resonance-page', { detail: view }))
+    if (view === 'studio' || view === 'lab') window.dispatchEvent(new Event('resize'))
   }, [view])
 
   useEffect(() => {
@@ -27,6 +31,8 @@ export default function App() {
     setView(next)
     setMenuOpen(false)
   }
+
+  const inWorkspace = view === 'studio' || view === 'lab'
 
   return (
     <div className="wrap">
@@ -61,57 +67,69 @@ export default function App() {
         <nav className="more-nav" aria-label="Pages">
           <button type="button" className="more-item" aria-current={view === 'studio' ? 'page' : undefined} onClick={() => go('studio')}>
             <span className="more-item-name">Studio</span>
-            <span className="more-item-note">patterns and sound</span>
+            <span className="more-item-note">3D shapes and harmonograph</span>
           </button>
           <button type="button" className="more-item" aria-current={view === 'lab' ? 'page' : undefined} onClick={() => go('lab')}>
             <span className="more-item-name">Lab</span>
-            <span className="more-item-note">frequency mixes</span>
+            <span className="more-item-note">sand plates and sweep</span>
           </button>
         </nav>
       </aside>
 
-      <div className="dashboard" hidden={view !== 'studio'}>
+      <div className="dashboard" hidden={!inWorkspace}>
         <section className="card panel col-pattern">
-          <h2 className="panel-heading">Pattern</h2>
-          <h3 className="plabel">Pattern type</h3>
-          <div className="seg fam" id="families" role="group" aria-label="pattern family">
-            <button type="button" data-f="square" aria-pressed="false">square plate</button>
-            <button type="button" data-f="round" aria-pressed="false">round drum</button>
-            <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
-            <button type="button" data-f="harmono" aria-pressed="false">harmonograph</button>
-            <button type="button" data-f="curve3d" aria-pressed="false">3D curve</button>
-            <button type="button" data-f="surface" aria-pressed="false">3D surface</button>
-            <button type="button" data-f="orb" aria-pressed="true">3D orb</button>
-            <button type="button" data-f="drum3d" aria-pressed="false">3D drum</button>
+          <h2 className="panel-heading">{view === 'lab' ? 'Plates' : 'Pattern'}</h2>
+          <div className="pattern-panel-body">
+            <div className="pattern-panel-studio" hidden={view !== 'studio'}>
+              <h3 className="plabel">Pattern type</h3>
+              <div className="seg fam" id="familiesStudio" role="group" aria-label="pattern family">
+                <button type="button" data-f="harmono" aria-pressed="false">harmonograph</button>
+                <button type="button" data-f="curve3d" aria-pressed="false">3D curve</button>
+                <button type="button" data-f="surface" aria-pressed="false">3D surface</button>
+                <button type="button" data-f="orb" aria-pressed="true">3D orb</button>
+                <button type="button" data-f="drum3d" aria-pressed="false">3D drum</button>
+              </div>
+              <h3 className="plabel">Motion</h3>
+              <div className="nm-line pace-line">
+                <span className="lab">detail</span>
+                <input id="pace" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="motion pace" />
+                <span className="lab">flow</span>
+              </div>
+            </div>
+            <div className="pattern-panel-lab" hidden={view !== 'lab'}>
+              <h3 className="plabel">Plate type</h3>
+              <div className="seg fam" id="familiesLab" role="group" aria-label="plate family">
+                <button type="button" data-f="square" aria-pressed="true">square plate</button>
+                <button type="button" data-f="round" aria-pressed="false">round drum</button>
+                <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
+              </div>
+              <div id="psourceBlock">
+                <h3 className="plabel">Pattern source</h3>
+                <div className="seg" id="psource" role="group" aria-label="pattern source">
+                  <button type="button" data-p="pitch" aria-pressed="true">link sweep to Hz</button>
+                  <button type="button" data-p="manual" aria-pressed="false">manual modes</button>
+                </div>
+              </div>
+              <div id="sweepBlock">
+                <h3 className="plabel">Sweep</h3>
+                <div className="sweep-row">
+                  <button type="button" className="chip sweep-btn" id="sweepBtn" aria-pressed="false">sweep</button>
+                  <span className="lab">speed</span>
+                  <input id="sweepSpeed" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="sweep speed" />
+                </div>
+              </div>
+            </div>
           </div>
-          <h3 className="plabel">Pattern source</h3>
-          <div className="seg" id="psource" role="group" aria-label="pattern source">
-            <button type="button" data-p="pitch" aria-pressed="true">follow pitch</button>
-            <button type="button" data-p="manual" aria-pressed="false">pick it yourself</button>
-          </div>
-          <div className="nm">
-            <div className="nm-line"><span className="nm-tag">n</span><input id="nSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="6" aria-label="mode n" /><span className="nm-val" id="nLabel">6</span></div>
-            <div className="nm-line"><span className="nm-tag">m</span><input id="mSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="4" aria-label="mode m" /><span className="nm-val" id="mLabel">4</span></div>
-            <div className="nm-line" id="zLine" style={{ display: 'none' }}><span className="nm-tag">z</span><input id="pSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="5" aria-label="depth frequency z" /><span className="nm-val" id="pLabel">5</span></div>
-          </div>
-          <h3 className="plabel">Motion</h3>
-          <div className="nm-line pace-line">
-            <span className="lab">detail</span>
-            <input id="pace" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="motion pace" />
-            <span className="lab">flow</span>
-          </div>
-          <div className="hint">Keep it left to let fine lines settle. Right is faster and looser.</div>
-          <h3 className="plabel">Sweep</h3>
-          <div className="sweep-row">
-            <button type="button" className="chip sweep-btn" id="sweepBtn" aria-pressed="false">sweep</button>
-            <span className="lab">speed</span>
-            <input id="sweepSpeed" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="sweep speed" />
-          </div>
-          <div className="hint" id="sweepHint">Glide pitch and patterns together. Use follow pitch above so shapes animate with the sound.</div>
-          <div className="panel-tail">
-            <h3 className="plabel">AI picture</h3>
-            <button type="button" className="gen-open-btn" id="genOpen">✨ turn pattern into image</button>
-            <div className="hint">Capture the pattern, describe it, and generate an image.</div>
+          <div className="pattern-panel-tail">
+            <div className="pattern-brand" aria-hidden="true">
+              <div className="pattern-brand-mark" />
+              <div className="pattern-brand-text">
+                <div className="pattern-brand-name">Reson<em>ance</em></div>
+                <div className="pattern-brand-tag">
+                  {view === 'lab' ? 'sand and frequency experiments' : 'watch a pool of sound organize itself'}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -127,16 +145,17 @@ export default function App() {
               <button type="button" id="zoomIn" aria-label="zoom in">+</button>
             </div>
           </div>
-          <div className="looks-bar">
-            <h3 className="plabel">Looks</h3>
-            <div className="seg looks" id="looks" role="group" aria-label="named looks">
-              <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
-              <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
-              <button type="button" data-look="drum" aria-pressed="false">drum</button>
-              <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
+          <div className="stage-bar" id="stageBar">
+            <div className="pitch-row" id="hzBlock">
+              <span className="lab">Hz</span>
+              <input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="tone frequency" />
+            </div>
+            <div className="stage-modes nm" id="stageModes">
+              <div className="nm-line"><span className="nm-tag">n</span><input id="nSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="6" aria-label="mode n" /><span className="nm-val" id="nLabel">6</span></div>
+              <div className="nm-line"><span className="nm-tag">m</span><input id="mSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="4" aria-label="mode m" /><span className="nm-val" id="mLabel">4</span></div>
+              <div className="nm-line" id="zLine" style={{ display: 'none' }}><span className="nm-tag">z</span><input id="pSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="5" aria-label="depth frequency z" /><span className="nm-val" id="pLabel">5</span></div>
             </div>
           </div>
-          <div className="pitch-row"><span className="lab">Pitch</span><input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="pitch" /></div>
           <div className="transport">
             <button type="button" className="play" id="play"><span className="ico" /><span id="playTxt">Play</span></button>
             <div className="vol-row"><span className="lab">Vol</span><input id="vol" className="cool" type="range" min="0" max="100" defaultValue="40" aria-label="volume" /></div>
@@ -157,29 +176,38 @@ export default function App() {
           </div>
         </section>
 
-        <section className="card panel col-sound">
+        <section className="card panel col-sound" hidden={view !== 'studio'}>
           <h2 className="panel-heading">Sound</h2>
-          <h3 className="plabel">Wave shape</h3>
-          <div className="seg" id="waves" role="group" aria-label="waveform">
-            <button type="button" data-w="sine" aria-pressed="true">sine</button>
-            <button type="button" data-w="triangle" aria-pressed="false">triangle</button>
-            <button type="button" data-w="square" aria-pressed="false">square</button>
-            <button type="button" data-w="sawtooth" aria-pressed="false">saw</button>
-          </div>
-          <h3 className="plabel">Try these</h3>
-          <div className="seg warm" id="modes" role="group" aria-label="experiment">
-            <button type="button" data-m="tone" aria-pressed="true">pure tone</button>
-            <button type="button" data-m="harmonics" aria-pressed="false">harmonics</button>
-            <button type="button" data-m="beat" aria-pressed="false">beat</button>
-            <button type="button" data-m="chord" aria-pressed="false">chord</button>
-          </div>
-          <div className="hint" id="modeHint">One clean tone. Slide Pitch and watch the pool rearrange.</div>
-          <div className="sound-rest" aria-hidden="true">
-            <span className="sound-rest-line">listen first, then look</span>
+          <div className="sound-stack">
+            <div className="sound-box">
+              <h3 className="plabel">Wave shape</h3>
+              <div className="seg" id="waves" role="group" aria-label="waveform">
+                <button type="button" data-w="sine" aria-pressed="true">sine</button>
+                <button type="button" data-w="triangle" aria-pressed="false">triangle</button>
+                <button type="button" data-w="square" aria-pressed="false">square</button>
+                <button type="button" data-w="sawtooth" aria-pressed="false">saw</button>
+              </div>
+              <h3 className="plabel">Try these</h3>
+              <div className="seg warm" id="modes" role="group" aria-label="experiment">
+                <button type="button" data-m="tone" aria-pressed="true">pure tone</button>
+                <button type="button" data-m="harmonics" aria-pressed="false">harmonics</button>
+                <button type="button" data-m="beat" aria-pressed="false">beat</button>
+                <button type="button" data-m="chord" aria-pressed="false">chord</button>
+              </div>
+            </div>
+            <div className="sound-box">
+              <h3 className="plabel">Looks</h3>
+              <div className="seg looks" id="looks" role="group" aria-label="named looks">
+                <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
+                <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
+                <button type="button" data-look="drum" aria-pressed="false">drum</button>
+                <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="col-signals">
+        <section className="col-signals" hidden={view !== 'studio'}>
           <div className="card signal-card">
             <h3>The wave <span className="sub">shape</span></h3>
             <canvas id="scope" />
@@ -189,49 +217,6 @@ export default function App() {
             <canvas id="spectrum" />
           </div>
         </section>
-      </div>
-
-      <section className="card lab-page" hidden={view !== 'lab'}>
-        <h2 className="panel-heading">Lab</h2>
-        <p className="lab-copy">Mix copyright-free beds with short clips of your moving frequencies. Audio playback is not enabled yet.</p>
-        <div className="lab-mix">
-          <article className="lab-clip">
-            <div className="lab-clip-art a" />
-            <h3>Still water</h3>
-            <p>Copyright-free bed</p>
-          </article>
-          <article className="lab-clip">
-            <div className="lab-clip-art b" />
-            <h3>Warm air</h3>
-            <p>Copyright-free bed</p>
-          </article>
-          <article className="lab-clip">
-            <div className="lab-clip-art c" />
-            <h3>Pattern clip</h3>
-            <p>Frequency loop</p>
-          </article>
-        </div>
-        <p className="hint">Lab audio will use public-domain and CC0 sources only.</p>
-        <button type="button" className="gen-open-btn lab-back" onClick={() => go('studio')}>Back to studio</button>
-      </section>
-
-      <div className="gen-overlay" id="genOverlay" hidden>
-        <div className="gen-card">
-          <button type="button" className="gen-close" id="genClose" aria-label="close">✕</button>
-          <div className="gen-title">Turn this pattern into a picture</div>
-          <img className="gen-thumb" id="genThumb" alt="captured pattern" />
-          <div id="genForm">
-            <label className="gen-label" htmlFor="genPrompt">Describe what it becomes</label>
-            <textarea id="genPrompt" rows="2" placeholder="this swirl is a black hole pulling everything in…" />
-            <div className="gen-strength"><span>keep shape</span><input id="genStrength" className="cool" type="range" min="20" max="85" defaultValue="50" aria-label="how much to reimagine" /><span>reimagine</span></div>
-            <button type="button" className="gen-go" id="genGo">Generate image</button>
-          </div>
-          <div className="gen-status" id="genStatus" />
-          <div id="genResultWrap" hidden>
-            <img className="gen-out" id="genOut" alt="AI render" />
-            <div className="gen-actions"><a className="chip" id="genSave" href="#">⤓ save</a><button type="button" className="chip" id="genAgain">try again</button></div>
-          </div>
-        </div>
       </div>
     </div>
   )

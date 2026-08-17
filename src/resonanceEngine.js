@@ -10,17 +10,20 @@ export function startResonanceEngine() {
 
   let freq = sliderToFreq(500), wave = "sine", vol = 0.40, mode = "tone";
   let showMirror = false, plateView = "sand", invert = false, paused = false;
-  let patternSource = "pitch", manN = 6, manM = 4, flipH = false, flipV = false, family = "orb", manP = 5;
+  let patternSource = "manual", manN = 6, manM = 4, flipH = false, flipV = false, family = "orb", manP = 5;
   let yaw = 0.7, pitch = 0.42, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
   let orbPts = [], orbKey = "";
   const GS = 96;
+  const SURF_GS = reduce ? 48 : 64;
   const MODE_MAX = 500;
+  const SAND_MODE_MAX = 48;
   const FRES = 640;
   let paceVal = 3;
   const THREE_D = () => family === "curve3d" || family === "surface" || family === "orb" || family === "drum3d";
   const ROTATABLE = () => THREE_D() || family === "harmono";
+  const USES_PITCH = () => family === "square" || family === "round" || family === "ripple";
   const spinRate = () => (reduce || paused || dragging) ? 0 : 0.0015 * (paceVal / 3);
-  let surfKey = "", surfH = null, surfNX = null, surfNY = null, surfNZ = null;
+  let surfKey = "", surfH = null, surfNX = null, surfNY = null, surfNZ = null, patternRev = 0;
 
   function ensureCtx() {
     if (ctx) return;
@@ -54,7 +57,7 @@ export function startResonanceEngine() {
 
   const $ = (id) => document.getElementById(id);
   const freqSlider = $("freq"), volSlider = $("vol"), freqVal = $("freqVal"), noteName = $("noteName");
-  const playBtn = $("play"), playTxt = $("playTxt"), modeHint = $("modeHint"), modeNM = $("modeNM");
+  const playBtn = $("play"), playTxt = $("playTxt"), modeNM = $("modeNM");
   const hints = {
     tone: "One clean tone. Slide Pitch and watch the pool rearrange.",
     harmonics: "Six tones stacked 1·2·3·4·5·6 — the recipe for a full sound. Look at the mix.",
@@ -78,7 +81,16 @@ export function startResonanceEngine() {
   function paintFreq() { freqVal.textContent = Math.round(freq); noteName.textContent = noteFor(freq); }
   function paintPlay() { playBtn.classList.toggle("playing", playing); playTxt.textContent = playing ? "Stop" : "Play"; playBtn.setAttribute("aria-pressed", playing); }
 
-  freqSlider.addEventListener("input", e => { freq = sliderToFreq(+e.target.value); paintFreq(); retune(); });
+  function applyFreqFromSlider(v) {
+    freq = sliderToFreq(v);
+    paintFreq();
+    retune();
+    if (patternSource === "pitch" && USES_PITCH()) invalidatePattern();
+  }
+  if (freqSlider) {
+    freqSlider.addEventListener("input", e => applyFreqFromSlider(+e.target.value));
+    freqSlider.addEventListener("change", e => applyFreqFromSlider(+e.target.value));
+  }
   volSlider.addEventListener("input", e => { vol = (+e.target.value) / 100 * 0.8; if (ctx && playing) master.gain.setTargetAtTime(vol, ctx.currentTime, 0.02); });
   playBtn.addEventListener("click", () => playing ? stop() : start());
   document.querySelectorAll("#waves button").forEach(b => b.addEventListener("click", () => {
@@ -87,7 +99,6 @@ export function startResonanceEngine() {
   }));
   document.querySelectorAll("#modes button").forEach(b => b.addEventListener("click", () => {
     mode = b.dataset.m; document.querySelectorAll("#modes button").forEach(x => x.setAttribute("aria-pressed", x === b));
-    modeHint.textContent = hints[mode];
     if (playing) { buildVoices(); master.gain.setValueAtTime(vol, ctx.currentTime); }
   }));
 
@@ -103,6 +114,15 @@ export function startResonanceEngine() {
   flipVBtn.addEventListener("click", () => { flipV = !flipV; flipVBtn.setAttribute("aria-pressed", flipV); });
 
   const nSlider = $("nSlider"), mSlider = $("mSlider"), nLabel = $("nLabel"), mLabel = $("mLabel");
+  let appPage = "studio";
+  const STUDIO_FAMS = ["harmono", "curve3d", "surface", "orb", "drum3d"];
+  const LAB_FAMS = ["square", "round", "ripple"];
+  function isStudioFamily(f) { return STUDIO_FAMS.includes(f); }
+  function syncFamilyButtons() {
+    document.querySelectorAll("#familiesStudio button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+    document.querySelectorAll("#familiesLab button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+  }
+  function modeCap() { return USES_PITCH() ? SAND_MODE_MAX : (isStudioFamily(family) ? 120 : MODE_MAX); }
   function setPatternSource(src) {
     patternSource = src;
     document.querySelectorAll("#psource button").forEach(x => x.setAttribute("aria-pressed", x.dataset.p === src));
@@ -110,29 +130,87 @@ export function startResonanceEngine() {
       sweeping = false;
       paintSweep();
     }
+    invalidatePattern();
+  }
+  function updateStageControls() {
+    const pitchPattern = USES_PITCH();
+    const onLab = appPage === "lab";
+    const psourceBlock = $("psourceBlock");
+    const sweepBlock = $("sweepBlock");
+    const viewGroup = $("views");
+    const mirrorBtn = $("mirror");
+    if (psourceBlock) psourceBlock.hidden = !onLab;
+    if (sweepBlock) sweepBlock.hidden = !onLab;
+    if (viewGroup) viewGroup.hidden = !onLab || !pitchPattern;
+    if (mirrorBtn) mirrorBtn.hidden = !onLab || !pitchPattern;
+    if (!pitchPattern) {
+      if (patternSource === "pitch") setPatternSource("manual");
+      else if (sweeping) { sweeping = false; paintSweep(); }
+    }
+    syncModeSliderCaps();
+  }
+  function syncModeSliderCaps() {
+    if (!nSlider || !mSlider) return;
+    const cap = modeCap(), min = USES_PITCH() ? 2 : 1;
+    nSlider.min = String(min); mSlider.min = String(min);
+    nSlider.max = String(cap); mSlider.max = String(cap);
+    manN = Math.max(min, Math.min(cap, manN));
+    manM = Math.max(min, Math.min(cap, manM));
+    if (manN === manM) manM = Math.min(cap, manM + 1);
+    nSlider.value = String(manN); mSlider.value = String(manM);
+    nLabel.textContent = manN; mLabel.textContent = manM;
+  }
+  function invalidatePattern() {
+    patternRev++;
+    lastFieldKey = "";
+    surfKey = ""; surfH = null; surfNX = null; surfNY = null; surfNZ = null;
+    base3Key = ""; orbKey = ""; orbPts = [];
+    if (USES_PITCH() && plateView === "sand") seedGrains();
   }
   function setManualFromSliders(changed) {
-    manN = +nSlider.value; manM = +mSlider.value;
-    if (manN === manM) { if (changed === "n") { manM = manM < MODE_MAX ? manM + 1 : manM - 1; mSlider.value = manM; } else { manN = manN < MODE_MAX ? manN + 1 : manN - 1; nSlider.value = manN; } }
-    nLabel.textContent = manN; mLabel.textContent = manM; lastFieldKey = "";
+    const cap = modeCap(), min = USES_PITCH() ? 2 : 1;
+    nSlider.max = String(cap); mSlider.max = String(cap);
+    manN = Math.max(min, Math.min(cap, +nSlider.value));
+    manM = Math.max(min, Math.min(cap, +mSlider.value));
+    if (manN === manM) {
+      if (changed === "n") manM = Math.min(cap, manM + 1);
+      else manN = Math.min(cap, manN + 1);
+      if (manN === manM) manM = Math.max(min, manM - 1);
+    }
+    nSlider.value = String(manN); mSlider.value = String(manM);
+    nLabel.textContent = manN; mLabel.textContent = manM;
+    setPatternSource("manual");
   }
-  nSlider.addEventListener("input", () => { setManualFromSliders("n"); setPatternSource("manual"); });
-  mSlider.addEventListener("input", () => { setManualFromSliders("m"); setPatternSource("manual"); });
+  nSlider.addEventListener("input", () => setManualFromSliders("n"));
+  mSlider.addEventListener("input", () => setManualFromSliders("m"));
+  nSlider.addEventListener("change", () => setManualFromSliders("n"));
+  mSlider.addEventListener("change", () => setManualFromSliders("m"));
   document.querySelectorAll("#psource button").forEach(b => b.addEventListener("click", () => {
-    if (b.dataset.p === "manual") { const c = modeNumbers(freq); manN = c.n; manM = c.m; manP = Math.max(1, Math.min(MODE_MAX, Math.round((c.n + c.m) / 1.6))); nSlider.value = manN; mSlider.value = manM; nLabel.textContent = manN; mLabel.textContent = manM; pSlider.value = manP; pLabel.textContent = manP; }
     setPatternSource(b.dataset.p);
   }));
-  function syncModeSliders(n, m) { if (patternSource !== "pitch") return; nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; }
-  function currentNM() { return patternSource === "manual" ? { n: manN, m: manM } : modeNumbers(freq); }
+  function sandModesFromFreq(f) {
+    const t = Math.log(Math.max(f, FMIN) / FMIN) / Math.log(FMAX / FMIN);
+    let n = Math.max(2, Math.min(SAND_MODE_MAX, Math.round(2 + t * (SAND_MODE_MAX - 2))));
+    let m = Math.max(2, Math.min(SAND_MODE_MAX, Math.round(2 + t * (SAND_MODE_MAX - 2) * 0.82)));
+    if (n === m) m = Math.min(SAND_MODE_MAX, m + 1);
+    return { n, m };
+  }
+  function currentNM() {
+    if (patternSource === "pitch" && USES_PITCH()) return sandModesFromFreq(freq);
+    return { n: manN, m: manM };
+  }
 
   const pSlider = $("pSlider"), pLabel = $("pLabel"), zLine = $("zLine");
   pSlider.addEventListener("input", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
+  pSlider.addEventListener("change", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
   function updateZLine() { zLine.style.display = family === "curve3d" ? "flex" : "none"; }
   function updateGrab() { plate.classList.toggle("grab", ROTATABLE()); }
   function updateModelChip() { $("saveModel").style.display = ROTATABLE() ? "inline-block" : "none"; }
   $("saveImg").addEventListener("click", exportPNG);
   $("saveModel").addEventListener("click", exportOBJ);
-  function current3() { if (patternSource === "manual") return { n: manN, m: manM, p: manP }; const c = modeNumbers(freq); return { n: c.n, m: c.m, p: Math.max(1, Math.min(MODE_MAX, Math.round((c.n + c.m) / 1.6))) }; }
+  function current3() {
+    return { n: manN, m: manM, p: manP };
+  }
 
   function resetViewForFamily() {
     if (family === "surface" || family === "drum3d") { yaw = 0.55; pitch = 1.05; }
@@ -141,7 +219,7 @@ export function startResonanceEngine() {
   }
   function applyState(s) {
     if (s.family) family = s.family;
-    document.querySelectorAll("#families button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === family));
+    syncFamilyButtons();
     if (s.n != null) { manN = s.n; nSlider.value = manN; nLabel.textContent = manN; }
     if (s.m != null) { manM = s.m; mSlider.value = manM; mLabel.textContent = manM; }
     if (s.p != null) { manP = s.p; pSlider.value = manP; pLabel.textContent = manP; }
@@ -153,36 +231,47 @@ export function startResonanceEngine() {
     if (s.flipH != null) { flipH = s.flipH; flipHBtn.setAttribute("aria-pressed", flipH); }
     if (s.flipV != null) { flipV = s.flipV; flipVBtn.setAttribute("aria-pressed", flipV); }
     resetViewForFamily();
+    syncModeSliderCaps();
     if (s.n != null || s.m != null || s.p != null) setPatternSource("manual");
-    seedGrains(); lastFieldKey = ""; surfKey = ""; base3Key = ""; orbKey = "";
-    updateZLine(); updateGrab(); updateModelChip();
+    else invalidatePattern();
+    seedGrains();
+    updateZLine(); updateGrab(); updateModelChip(); updateStageControls();
   }
-  document.querySelectorAll("#families button").forEach(b => b.addEventListener("click", () => {
-    applyState({ family: b.dataset.f });
+  document.querySelectorAll("#familiesStudio button").forEach(b => b.addEventListener("click", () => {
+    applyState({ family: b.dataset.f, n: 6, m: 4, p: 5 });
+    setPatternSource("manual");
+    paintLook("");
+  }));
+  document.querySelectorAll("#familiesLab button").forEach(b => b.addEventListener("click", () => {
+    applyState({ family: b.dataset.f, n: 6, m: 4, view: "sand" });
+    setPatternSource("pitch");
     paintLook("");
   }));
   $("dice").addEventListener("click", () => {
-    const fams = ["square", "round", "ripple", "harmono", "curve3d", "surface", "orb", "drum3d"];
+    const onLab = appPage === "lab";
+    const fams = onLab ? LAB_FAMS : STUDIO_FAMS;
     const randMode = () => {
+      if (onLab) return 2 + Math.floor(Math.random() * (SAND_MODE_MAX - 1));
       const r = Math.random();
-      if (r < 0.55) return 2 + Math.floor(Math.random() * 36);
-      if (r < 0.88) return 40 + Math.floor(Math.random() * 100);
-      return 140 + Math.floor(Math.random() * (MODE_MAX - 139));
+      if (r < 0.7) return 2 + Math.floor(Math.random() * 20);
+      return 20 + Math.floor(Math.random() * 40);
     };
     let n = randMode(), m = randMode();
-    if (n === m) m = Math.min(MODE_MAX, m + 1);
+    const cap = onLab ? SAND_MODE_MAX : 120;
+    if (n === m) m = Math.min(cap, m + 1);
     applyState({
       family: fams[Math.floor(Math.random() * fams.length)],
       n, m, p: randMode(),
-      view: Math.random() < 0.5 ? "field" : "sand"
+      view: onLab ? (Math.random() < 0.5 ? "field" : "sand") : "field"
     });
+    if (onLab) setPatternSource("pitch");
     paintLook("");
   });
   const LOOKS = {
-    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
-    nebula: { family: "orb", n: 11, m: 5, view: "sand", invert: false },
+    galaxy: { family: "orb", n: 6, m: 4, view: "field", invert: false },
+    nebula: { family: "orb", n: 11, m: 5, view: "field", invert: false },
     drum: { family: "drum3d", n: 5, m: 3, view: "field", invert: false },
-    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false }
+    infinity: { family: "harmono", n: 2, m: 1, view: "field", invert: false }
   };
   function paintLook(name) {
     document.querySelectorAll("#looks [data-look]").forEach(x => x.setAttribute("aria-pressed", x.dataset.look === name));
@@ -296,7 +385,7 @@ export function startResonanceEngine() {
     return Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
   }
 
-  let grains = []; const GRAINS = reduce ? 2400 : 6200;
+  let grains = []; const GRAINS = reduce ? 4000 : 7200;
   function seedGrains() { grains = new Array(GRAINS); for (let i = 0; i < GRAINS; i++) grains[i] = { x: Math.random(), y: Math.random() }; }
   seedGrains();
 
@@ -304,7 +393,15 @@ export function startResonanceEngine() {
   const fctx = fieldCanvas.getContext("2d");
   let fieldImg = fctx.createImageData(FRES, FRES); let lastFieldKey = "";
   const BASE = [244, 251, 255], UP = [27, 157, 232], DN = [255, 126, 110];
-  function putPix(d, idx, v) { if (v > 1) v = 1; else if (v < -1) v = -1; const t = (invert ? -v : v), tg = (t >= 0 ? UP : DN), mag = Math.abs(t); d[idx] = BASE[0] + (tg[0] - BASE[0]) * mag; d[idx + 1] = BASE[1] + (tg[1] - BASE[1]) * mag; d[idx + 2] = BASE[2] + (tg[2] - BASE[2]) * mag; d[idx + 3] = 255; }
+  function putPix(d, idx, v) {
+    if (v > 1) v = 1; else if (v < -1) v = -1;
+    const t = invert ? -v : v, tg = (t >= 0 ? UP : DN);
+    const mag = Math.pow(Math.abs(t), 0.78);
+    d[idx] = BASE[0] + (tg[0] - BASE[0]) * mag;
+    d[idx + 1] = BASE[1] + (tg[1] - BASE[1]) * mag;
+    d[idx + 2] = BASE[2] + (tg[2] - BASE[2]) * mag;
+    d[idx + 3] = 255;
+  }
   function renderField(n, m) {
     const key = family + "|" + n + "|" + m + "|" + invert;
     if (lastFieldKey === key) return; lastFieldKey = key;
@@ -314,10 +411,10 @@ export function startResonanceEngine() {
       for (let i = 0; i < FRES; i++) { const x = i / (FRES - 1); cN[i] = Math.cos(n * Math.PI * x); cM[i] = Math.cos(m * Math.PI * x); }
       for (let j = 0; j < FRES; j++) {
         const y = j / (FRES - 1), cNy = Math.cos(n * Math.PI * y), cMy = Math.cos(m * Math.PI * y);
-        for (let i = 0; i < FRES; i++) { putPix(d, (j * FRES + i) * 4, (cN[i] * cMy - cM[i] * cNy) / 1.6); }
+        for (let i = 0; i < FRES; i++) { putPix(d, (j * FRES + i) * 4, (cN[i] * cMy - cM[i] * cNy) / 1.35); }
       }
     } else {
-      const div = (family === "round") ? 0.7 : 1.0;
+      const div = (family === "round") ? 0.62 : 0.88;
       for (let j = 0; j < FRES; j++) {
         const y = j / (FRES - 1);
         for (let i = 0; i < FRES; i++) {
@@ -369,7 +466,7 @@ export function startResonanceEngine() {
   }
 
   function build3(n, m, p) {
-    const key = n + "|" + m + "|" + p; if (key === base3Key) return; base3Key = key;
+    const key = patternRev + "|" + n + "|" + m + "|" + p; if (key === base3Key) return; base3Key = key;
     base3 = []; const N = 2000, TWO = 6.283185307, px = Math.PI / 2, py = Math.PI / 4;
     for (let i = 0; i <= N; i++) { const t = i / N * TWO; base3.push([Math.sin(n * t + px), Math.sin(m * t + py), Math.sin(p * t)]); }
   }
@@ -397,7 +494,6 @@ export function startResonanceEngine() {
       prev = [X, Y];
     }
     modeNM.textContent = "3D curve · " + n + ":" + m + ":" + p;
-    if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; pSlider.value = p; pLabel.textContent = p; }
   }
 
   function heightAt(kind, n, m, x, y) {
@@ -409,10 +505,11 @@ export function startResonanceEngine() {
     return Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
   }
   function numOr(v, d) { return Number.isFinite(v) ? v : d; }
+  let surfPx = null, surfPy = null, surfPz = null, surfDepth = null, surfQuadOrder = null;
   function buildSurface(n, m, kind) {
     kind = kind || "plate";
-    const key = kind + "|" + n + "|" + m; if (key === surfKey && surfH) return; surfKey = key;
-    const G = GS, W = G + 1;
+    const key = patternRev + "|" + kind + "|" + n + "|" + m; if (key === surfKey && surfH) return; surfKey = key;
+    const G = SURF_GS, W = G + 1;
     surfH = new Float32Array(W * W);
     for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { surfH[j * W + i] = heightAt(kind, n, m, i / G, j / G); } }
     surfNX = new Float32Array(W * W); surfNY = new Float32Array(W * W); surfNZ = new Float32Array(W * W);
@@ -433,47 +530,84 @@ export function startResonanceEngine() {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
     buildSurface(n, m, kind);
     if (!paused && !dragging && !reduce) yaw += spinRate();
-    const G = GS, W = G + 1, amp = 0.9;
+    const G = SURF_GS, W = G + 1, amp = 0.9, quadCount = G * G;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
     const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * (kind === "drum" ? 0.58 : 0.62) * viewZoom;
     const Lx = 0.35, Ly = 0.45, Lz = 0.82;
-    const px = new Float32Array(W * W), py = new Float32Array(W * W), pz = new Float32Array(W * W);
-    const nrx = new Float32Array(W * W), nry = new Float32Array(W * W), nrz = new Float32Array(W * W);
-    for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) { const idx = j * W + i;
-      const hgt = Number.isFinite(surfH[idx]) ? surfH[idx] : 0;
-      const mx = (i / G - 0.5), my = hgt * amp * 0.5, mz = (j / G - 0.5);
-      const x1 = mx * ca + mz * sa, z1 = -mx * sa + mz * ca, y2 = my * cb - z1 * sb, z2 = my * sb + z1 * cb;
-      px[idx] = cx + fx * R * x1; py[idx] = cy - fy * R * y2; pz[idx] = z2;
-      const nX = surfNX[idx], nY = surfNZ[idx], nZ = surfNY[idx];
-      const nx1 = nX * ca + nZ * sa, nz1 = -nX * sa + nZ * ca, ny2 = nY * cb - nz1 * sb, nz2 = nY * sb + nz1 * cb;
-      nrx[idx] = nx1; nry[idx] = ny2; nrz[idx] = nz2;
-    } }
-    const quads = [];
-    for (let j = 0; j < G; j++) { for (let i = 0; i < G; i++) {
-      const a = j * W + i, b = j * W + i + 1, c = (j + 1) * W + i + 1, dd = (j + 1) * W + i;
-      if (kind === "drum" && (!Number.isFinite(surfH[a]) || !Number.isFinite(surfH[b]) || !Number.isFinite(surfH[c]) || !Number.isFinite(surfH[dd]))) continue;
-      const depth = (pz[a] + pz[b] + pz[c] + pz[dd]) * 0.25, hAvg = (surfH[a] + surfH[b] + surfH[c] + surfH[dd]) * 0.5;
-      let nx = nrx[a] + nrx[b] + nrx[c] + nrx[dd], ny = nry[a] + nry[b] + nry[c] + nry[dd], nz = nrz[a] + nrz[b] + nrz[c] + nrz[dd];
-      const Ln = Math.hypot(nx, ny, nz) || 1; let diff = (nx * Lx + ny * Ly + nz * Lz) / Ln; diff = 0.4 + 0.72 * Math.max(0, diff);
-      quads.push({ a, b, c, d: dd, depth, h: hAvg, diff });
-    } }
-    quads.sort((p, q) => p.depth - q.depth);
-    for (const Q of quads) {
-      let hn = Q.h / 1.6; if (hn > 1) hn = 1; else if (hn < -1) hn = -1; if (invert) hn = -hn;
-      let r, g, b;
-      if (hn >= 0) { r = 244 + (27 - 244) * hn; g = 251 + (157 - 251) * hn; b = 255 + (232 - 255) * hn; }
-      else { const t = -hn; r = 244 + (255 - 244) * t; g = 251 + (126 - 251) * t; b = 255 + (110 - 255) * t; }
-      const df = Q.diff; r = r * df; g = g * df; b = b * df;
-      r = r > 255 ? 255 : r; g = g > 255 ? 255 : g; b = b > 255 ? 255 : b;
-      pctx.fillStyle = "rgb(" + (r | 0) + "," + (g | 0) + "," + (b | 0) + ")"; pctx.strokeStyle = pctx.fillStyle; pctx.lineWidth = 1;
-      pctx.beginPath(); pctx.moveTo(px[Q.a], py[Q.a]); pctx.lineTo(px[Q.b], py[Q.b]); pctx.lineTo(px[Q.c], py[Q.c]); pctx.lineTo(px[Q.d], py[Q.d]); pctx.closePath(); pctx.fill(); pctx.stroke();
+    const vertCount = W * W;
+    if (!surfPx || surfPx.length < vertCount) {
+      surfPx = new Float32Array(vertCount);
+      surfPy = new Float32Array(vertCount);
+      surfPz = new Float32Array(vertCount);
     }
+    if (!surfDepth || surfDepth.length < quadCount) {
+      surfDepth = new Float32Array(quadCount);
+      surfQuadOrder = new Uint32Array(quadCount);
+    }
+    for (let j = 0; j < W; j++) {
+      for (let i = 0; i < W; i++) {
+        const idx = j * W + i;
+        const hgt = Number.isFinite(surfH[idx]) ? surfH[idx] : 0;
+        const mx = (i / G - 0.5), my = hgt * amp * 0.5, mz = (j / G - 0.5);
+        const x1 = mx * ca + mz * sa, z1 = -mx * sa + mz * ca;
+        const y2 = my * cb - z1 * sb, z2 = my * sb + z1 * cb;
+        surfPx[idx] = cx + fx * R * x1;
+        surfPy[idx] = cy - fy * R * y2;
+        surfPz[idx] = z2;
+      }
+    }
+    for (let j = 0; j < G; j++) {
+      for (let i = 0; i < G; i++) {
+        const qi = j * G + i;
+        const a = j * W + i, b = j * W + i + 1, c = (j + 1) * W + i + 1, dd = (j + 1) * W + i;
+        if (kind === "drum" && (!Number.isFinite(surfH[a]) || !Number.isFinite(surfH[b]) || !Number.isFinite(surfH[c]) || !Number.isFinite(surfH[dd]))) {
+          surfDepth[qi] = 1e9;
+          surfQuadOrder[qi] = qi;
+          continue;
+        }
+        const depth = (surfPz[a] + surfPz[b] + surfPz[c] + surfPz[dd]) * 0.25;
+        surfDepth[qi] = depth + qi * 1e-7;
+        surfQuadOrder[qi] = qi;
+      }
+    }
+    const order = Array.from(surfQuadOrder.subarray(0, quadCount));
+    order.sort((a, b) => surfDepth[a] - surfDepth[b]);
+    pctx.imageSmoothingEnabled = false;
+    for (let k = 0; k < order.length; k++) {
+      const qi = order[k];
+      if (surfDepth[qi] > 1e8) continue;
+      const j = Math.floor(qi / G), i = qi % G;
+      const a = j * W + i, b = j * W + i + 1, c = (j + 1) * W + i + 1, dd = (j + 1) * W + i;
+      const hAvg = (surfH[a] + surfH[b] + surfH[c] + surfH[dd]) * 0.5;
+      const nX = surfNX[a] + surfNX[b] + surfNX[c] + surfNX[dd];
+      const nY = surfNY[a] + surfNY[b] + surfNY[c] + surfNY[dd];
+      const nZ = surfNZ[a] + surfNZ[b] + surfNZ[c] + surfNZ[dd];
+      const nx1 = nX * ca + nZ * sa, nz1 = -nX * sa + nZ * ca;
+      const ny2 = nY * cb - nz1 * sb, nz2 = nY * sb + nz1 * cb;
+      const Ln = Math.hypot(nx1, ny2, nz2) || 1;
+      let diff = (nx1 * Lx + ny2 * Ly + nz2 * Lz) / Ln;
+      diff = 0.4 + 0.72 * Math.max(0, diff);
+      let hn = hAvg / 1.6; if (hn > 1) hn = 1; else if (hn < -1) hn = -1; if (invert) hn = -hn;
+      let r, g, bl;
+      if (hn >= 0) { r = 244 + (27 - 244) * hn; g = 251 + (157 - 251) * hn; bl = 255 + (232 - 255) * hn; }
+      else { const t = -hn; r = 244 + (255 - 244) * t; g = 251 + (126 - 251) * t; bl = 255 + (110 - 255) * t; }
+      const df = diff; r = r * df; g = g * df; bl = bl * df;
+      r = r > 255 ? 255 : r; g = g > 255 ? 255 : g; bl = bl > 255 ? 255 : bl;
+      pctx.fillStyle = "rgb(" + (r | 0) + "," + (g | 0) + "," + (bl | 0) + ")";
+      pctx.beginPath();
+      pctx.moveTo(surfPx[a], surfPy[a]);
+      pctx.lineTo(surfPx[b], surfPy[b]);
+      pctx.lineTo(surfPx[c], surfPy[c]);
+      pctx.lineTo(surfPx[dd], surfPy[dd]);
+      pctx.closePath();
+      pctx.fill();
+    }
+    pctx.imageSmoothingEnabled = true;
     modeNM.textContent = (kind === "drum" ? "3D drum" : "surface") + " · " + n + "×" + m;
-    if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; }
   }
 
   function buildOrb(n, m) {
-    const key = n + "|" + m; if (key === orbKey && orbPts.length) return; orbKey = key;
+    const key = patternRev + "|" + n + "|" + m; if (key === orbKey && orbPts.length) return; orbKey = key;
     const N = 3600, ga = Math.PI * (3 - Math.sqrt(5));
     orbPts = new Array(N);
     for (let i = 0; i < N; i++) {
@@ -513,7 +647,6 @@ export function startResonanceEngine() {
       pctx.fillRect(P.X, P.Y, s, s);
     }
     modeNM.textContent = "3D orb · " + n + "×" + m;
-    if (patternSource === "pitch") { nSlider.value = n; mSlider.value = m; nLabel.textContent = n; mLabel.textContent = m; }
   }
 
   function downloadBlob(name, text, type) {
@@ -548,7 +681,7 @@ export function startResonanceEngine() {
       name = "frequency-orb-" + nm.n + "-" + nm.m + ".obj";
     } else {
       const kind = family === "drum3d" ? "drum" : "plate";
-      const nm = currentNM(); buildSurface(nm.n, nm.m, kind); const G = GS, W = G + 1, amp = 0.9;
+      const nm = currentNM(); buildSurface(nm.n, nm.m, kind); const G = SURF_GS, W = G + 1, amp = 0.9;
       for (let j = 0; j < W; j++) { for (let i = 0; i < W; i++) {
         const hgt = Number.isFinite(surfH[j * W + i]) ? surfH[j * W + i] : 0;
         const X = (i / G - 0.5) * 100, Yy = hgt * amp * 0.5 * 100, Z = (j / G - 0.5) * 100;
@@ -580,14 +713,14 @@ export function startResonanceEngine() {
       pctx.restore();
       drawMirrorLines(w, h); label(n, m); return;
     }
-    pctx.fillStyle = "rgba(244,251,255,0.16)"; pctx.fillRect(0, 0, w, h);
-    const dens = 1 + (n + m) / 70;
-    const step = ((reduce ? 0.007 : 0.010) * (paceVal / 3)) / dens;
-    const jitter = (0.00105 * (paceVal / 3)) / (1 + (n + m) / 110);
-    const wander = 0.018 / dens;
-    const grainSize = reduce ? 1.0 : (n + m > 80 ? 0.95 : 1.15);
+    pctx.fillStyle = "rgba(244,251,255,0.1)"; pctx.fillRect(0, 0, w, h);
+    const dens = 1 + (n + m) / 65;
+    const step = ((reduce ? 0.006 : 0.0085) * (paceVal / 3)) / Math.sqrt(dens);
+    const jitter = (0.00085 * (paceVal / 3)) / (1 + (n + m) / 100);
+    const wander = 0.016 / Math.sqrt(dens);
+    const grainSize = reduce ? 0.95 : (n + m > 50 ? 0.9 : 1.1);
     pctx.save(); applyFlip(w, h);
-    pctx.fillStyle = invert ? "rgba(255,110,92,0.85)" : "rgba(13,88,151,0.82)";
+    pctx.fillStyle = invert ? "rgba(255,100,88,0.9)" : "rgba(10,78,140,0.86)";
     for (let i = 0; i < grains.length; i++) {
       const p = grains[i];
       if (!paused) {
@@ -600,12 +733,18 @@ export function startResonanceEngine() {
       }
       const zx = 0.5 + (p.x - 0.5) * viewZoom, zy = 0.5 + (p.y - 0.5) * viewZoom;
       if (zx < -0.08 || zx > 1.08 || zy < -0.08 || zy > 1.08) continue;
-      const gs = grainSize * Math.min(1.35, 0.85 + viewZoom * 0.2);
+      const gs = Math.max(1.1, grainSize * Math.min(1.15, 0.78 + viewZoom * 0.14));
       pctx.fillRect(zx * w, zy * h, gs, gs);
     }
     pctx.restore(); drawMirrorLines(w, h); label(n, m);
   }
-  function label(n, m) { modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m); syncModeSliders(n, m); }
+  function label(n, m) {
+    modeNM.textContent = family === "harmono" ? ("harmonograph · " + n + ":" + m) : (family + " · " + n + "×" + m);
+    if (patternSource === "pitch" && USES_PITCH()) {
+      nLabel.textContent = n;
+      mLabel.textContent = m;
+    }
+  }
 
   const SWEEP_LO = 240, SWEEP_HI = 1000;
   let sweepDir = -1, sweepSpeedVal = 3;
@@ -616,53 +755,32 @@ export function startResonanceEngine() {
       let v = +freqSlider.value + sweepDir * speed;
       if (v >= SWEEP_HI) { v = SWEEP_HI; sweepDir = -1; } if (v <= SWEEP_LO) { v = SWEEP_LO; sweepDir = 1; }
       freqSlider.value = v; freq = sliderToFreq(v); paintFreq(); retune();
-      lastFieldKey = "";
     }
     drawScope(); drawSpectrum(); drawPlate();
     rafId = requestAnimationFrame(loop);
   }
 
-  const genOverlay = $("genOverlay"), genThumb = $("genThumb"), genPrompt = $("genPrompt"),
-    genStrength = $("genStrength"), genGo = $("genGo"), genStatus = $("genStatus"),
-    genForm = $("genForm"), genResultWrap = $("genResultWrap"), genOut = $("genOut");
-  let genImgData = "";
-  function captureSquare(size) {
-    const c = document.createElement("canvas"); c.width = size; c.height = size;
-    const g = c.getContext("2d"); g.fillStyle = "#F3FBFF"; g.fillRect(0, 0, size, size);
-    g.drawImage(plate, 0, 0, size, size); return c.toDataURL("image/jpeg", 0.85);
+  function setAppPage(page) {
+    appPage = page === "lab" ? "lab" : "studio";
+    if (appPage === "lab") {
+      if (!USES_PITCH()) applyState({ family: "square", n: 6, m: 4, view: "sand" });
+      setPatternSource("pitch");
+    } else if (USES_PITCH()) {
+      applyState({ family: "orb", n: 6, m: 4, p: 5, view: "field" });
+      setPatternSource("manual");
+    }
+    updateStageControls();
   }
-  function openGen() { genImgData = captureSquare(1024); genThumb.src = genImgData; genResultWrap.hidden = true; genForm.style.display = ""; genStatus.textContent = ""; genOverlay.hidden = false; }
-  function closeGen() { genOverlay.hidden = true; }
-  $("genOpen").addEventListener("click", openGen);
-  $("genClose").addEventListener("click", closeGen);
-  genOverlay.addEventListener("click", e => { if (e.target === genOverlay) closeGen(); });
-  $("genAgain").addEventListener("click", () => { genResultWrap.hidden = true; genForm.style.display = ""; genStatus.textContent = ""; });
-  $("genSave").addEventListener("click", async e => {
-    e.preventDefault();
-    try { const r = await fetch(genOut.src); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "frequency-render.png"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 200); }
-    catch (_) { window.open(genOut.src, "_blank"); }
-  });
-  async function generate() {
-    const prompt = genPrompt.value.trim();
-    if (!prompt) { genStatus.textContent = "Type a description first."; return; }
-    genGo.disabled = true; genForm.style.display = "none"; genResultWrap.hidden = true;
-    genStatus.innerHTML = '<div class="gen-spin"></div>Generating image…';
-    try {
-      const resp = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: genImgData, prompt, strength: (+genStrength.value) / 100 }) });
-      let j = {}; try { j = await resp.json(); } catch (_) {}
-      if (resp.ok && j.url) { genOut.src = j.url; genStatus.textContent = ""; genResultWrap.hidden = false; }
-      else { genForm.style.display = ""; genStatus.textContent = (j && j.error) ? j.error : ("Render failed (" + resp.status + "). Add GEMINI_API_KEY in Vercel, then Redeploy."); }
-    } catch (err) { genForm.style.display = ""; genStatus.textContent = "Can't reach the AI server — the live Vercel site is required (localhost won't call Gemini)."; }
-    genGo.disabled = false;
-  }
-  genGo.addEventListener("click", generate);
+  const onResonancePage = (e) => setAppPage(e.detail);
+  window.addEventListener("resonance-page", onResonancePage);
 
-  updateZLine(); updateGrab(); updateModelChip();
+  updateZLine(); updateGrab(); updateModelChip(); updateStageControls();
   rafId = requestAnimationFrame(loop);
 
   return () => {
     cancelAnimationFrame(rafId);
     window.removeEventListener("resize", onResize);
+    window.removeEventListener("resonance-page", onResonancePage);
     stop();
   };
 }
