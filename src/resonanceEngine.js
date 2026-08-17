@@ -10,8 +10,8 @@ export function startResonanceEngine() {
 
   let freq = sliderToFreq(500), wave = "sine", vol = 0.40, mode = "tone";
   let showMirror = false, plateView = "sand", invert = false, paused = false;
-  let patternSource = "pitch", manN = 3, manM = 2, flipH = false, flipV = false, family = "square", manP = 5;
-  let yaw = 0.6, pitch = 0.5, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
+  let patternSource = "pitch", manN = 6, manM = 4, flipH = false, flipV = false, family = "orb", manP = 5;
+  let yaw = 0.7, pitch = 0.42, dragging = false, lastX = 0, lastY = 0, base3 = [], base3Key = "";
   let orbPts = [], orbKey = "";
   const GS = 96;
   const MODE_MAX = 500;
@@ -159,7 +159,7 @@ export function startResonanceEngine() {
     applyState({ family: b.dataset.f });
   }));
   $("dice").addEventListener("click", () => {
-    const fams = ["square", "round", "ripple", "harmono", "curve3d", "surface", "orb", "drum3d"];
+    const fams = ["harmono", "curve3d", "surface", "orb", "drum3d"];
     const randMode = () => {
       const r = Math.random();
       if (r < 0.55) return 2 + Math.floor(Math.random() * 36);
@@ -175,14 +175,7 @@ export function startResonanceEngine() {
     });
   });
   const LOOKS = {
-    eye: { family: "round", n: 8, m: 1, view: "sand", invert: false, flipH: false, flipV: false },
-    flower: { family: "round", n: 5, m: 8, view: "sand", invert: false },
-    snowflake: { family: "square", n: 13, m: 12, view: "field", invert: false },
-    star: { family: "round", n: 4, m: 5, view: "sand", invert: false },
-    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false },
-    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
-    shell: { family: "surface", n: 9, m: 4, view: "field", invert: false },
-    knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false }
+    galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false }
   };
   document.querySelectorAll("#looks [data-look]").forEach(b => b.addEventListener("click", () => {
     const look = LOOKS[b.dataset.look];
