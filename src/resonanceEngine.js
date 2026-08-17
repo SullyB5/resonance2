@@ -18,6 +18,7 @@ export function startResonanceEngine() {
   const FRES = 640;
   let paceVal = 3;
   const THREE_D = () => family === "curve3d" || family === "surface" || family === "orb" || family === "drum3d";
+  const ROTATABLE = () => THREE_D() || family === "harmono";
   const spinRate = () => (reduce || paused || dragging) ? 0 : 0.0015 * (paceVal / 3);
   let surfKey = "", surfH = null, surfNX = null, surfNY = null, surfNZ = null;
 
@@ -127,8 +128,8 @@ export function startResonanceEngine() {
   const pSlider = $("pSlider"), pLabel = $("pLabel"), zLine = $("zLine");
   pSlider.addEventListener("input", () => { manP = +pSlider.value; pLabel.textContent = manP; setPatternSource("manual"); });
   function updateZLine() { zLine.style.display = family === "curve3d" ? "flex" : "none"; }
-  function updateGrab() { plate.classList.toggle("grab", THREE_D()); }
-  function updateModelChip() { $("saveModel").style.display = THREE_D() ? "inline-block" : "none"; }
+  function updateGrab() { plate.classList.toggle("grab", ROTATABLE()); }
+  function updateModelChip() { $("saveModel").style.display = ROTATABLE() ? "inline-block" : "none"; }
   $("saveImg").addEventListener("click", exportPNG);
   $("saveModel").addEventListener("click", exportOBJ);
   function current3() { if (patternSource === "manual") return { n: manN, m: manM, p: manP }; const c = modeNumbers(freq); return { n: c.n, m: c.m, p: Math.max(1, Math.min(MODE_MAX, Math.round((c.n + c.m) / 1.6))) }; }
@@ -136,6 +137,7 @@ export function startResonanceEngine() {
   function resetViewForFamily() {
     if (family === "surface" || family === "drum3d") { yaw = 0.55; pitch = 1.05; }
     else if (family === "curve3d" || family === "orb") { yaw = 0.7; pitch = 0.42; }
+    else if (family === "harmono") { yaw = 0; pitch = 0; }
   }
   function applyState(s) {
     if (s.family) family = s.family;
@@ -160,7 +162,7 @@ export function startResonanceEngine() {
     paintLook("");
   }));
   $("dice").addEventListener("click", () => {
-    const fams = ["harmono", "curve3d", "surface", "orb", "drum3d"];
+    const fams = ["square", "round", "ripple", "harmono", "curve3d", "surface", "orb", "drum3d"];
     const randMode = () => {
       const r = Math.random();
       if (r < 0.55) return 2 + Math.floor(Math.random() * 36);
@@ -217,7 +219,7 @@ export function startResonanceEngine() {
   const onResize = () => { SC = fit(scope, sctx); SP = fit(spec, spctx); PL = fit(plate, pctx); seedGrains(); };
   window.addEventListener("resize", onResize);
 
-  plate.addEventListener("pointerdown", e => { if (!THREE_D()) return; dragging = true; lastX = e.clientX; lastY = e.clientY; try { plate.setPointerCapture(e.pointerId); } catch (_) {} });
+  plate.addEventListener("pointerdown", e => { if (!ROTATABLE()) return; dragging = true; lastX = e.clientX; lastY = e.clientY; try { plate.setPointerCapture(e.pointerId); } catch (_) {} });
   plate.addEventListener("pointermove", e => { if (!dragging) return; yaw += (e.clientX - lastX) * 0.01; pitch += (e.clientY - lastY) * 0.01; pitch = Math.max(-1.45, Math.min(1.45, pitch)); lastX = e.clientX; lastY = e.clientY; });
   const endDrag = () => { dragging = false; };
   plate.addEventListener("pointerup", endDrag); plate.addEventListener("pointercancel", endDrag); plate.addEventListener("pointerleave", endDrag);
@@ -342,18 +344,30 @@ export function startResonanceEngine() {
   function drawHarmono(w, h, n, m) {
     pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
     if (!paused && !reduce) hPhase += 0.0015 * (paceVal / 3);
+    if (!paused && !dragging && !reduce) yaw += spinRate();
     const a = Math.max(1, n), b = Math.max(1, m);
     const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42 * viewZoom;
-    const dt = 0.22 / Math.max(a, b, 2), STEPS = 7200, decay = 3.6 / (STEPS * dt), p = hPhase + Math.PI / 2;
-    pctx.save(); applyFlip(w, h);
-    let stroke;
-    if (invert) { stroke = "#FF7E6E"; }
-    else { const g = pctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, "#1B9DE8"); g.addColorStop(1, "#2FCBBE"); stroke = g; }
-    pctx.strokeStyle = stroke; pctx.lineWidth = 1.5; pctx.globalAlpha = 0.92; pctx.lineJoin = "round";
-    pctx.shadowColor = "rgba(27,157,232,0.28)"; pctx.shadowBlur = 4;
-    pctx.beginPath();
-    for (let i = 0; i < STEPS; i++) { const t = i * dt, env = Math.exp(-decay * t); const x = cx + R * env * Math.sin(a * t + p), y = cy + R * env * Math.sin(b * t); i ? pctx.lineTo(x, y) : pctx.moveTo(x, y); }
-    pctx.stroke(); pctx.restore(); pctx.globalAlpha = 1; pctx.shadowBlur = 0;
+    const dt = 0.22 / Math.max(a, b, 2), STEPS = 3600, decay = 3.6 / (STEPS * dt), ph = hPhase + Math.PI / 2;
+    const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1;
+    pctx.lineWidth = 1.6; pctx.lineJoin = "round";
+    let prev = null;
+    for (let i = 0; i < STEPS; i++) {
+      const t = i * dt, env = Math.exp(-decay * t);
+      const x = env * Math.sin(a * t + ph), y = env * Math.sin(b * t), z = 0;
+      const x1 = x * ca + z * sa, z1 = -x * sa + z * ca;
+      const y2 = y * cb - z1 * sb, z2 = y * sb + z1 * cb;
+      const X = cx + fx * R * x1, Y = cy - fy * R * y2;
+      if (prev) {
+        let d = (z2 / 1.75 + 1) / 2; if (d < 0) d = 0; else if (d > 1) d = 1;
+        const A = 0.28 + 0.64 * d; let r, g, bl;
+        if (invert) { r = 255; g = (105 + 80 * d) | 0; bl = (85 + 70 * d) | 0; }
+        else { r = (12 + 28 * d) | 0; g = (105 + 98 * d) | 0; bl = (182 + 20 * d) | 0; }
+        pctx.strokeStyle = "rgba(" + r + "," + g + "," + bl + "," + A + ")";
+        pctx.beginPath(); pctx.moveTo(prev[0], prev[1]); pctx.lineTo(X, Y); pctx.stroke();
+      }
+      prev = [X, Y];
+    }
     drawMirrorLines(w, h); label(n, m);
   }
 
@@ -522,6 +536,15 @@ export function startResonanceEngine() {
       for (const P of base3) obj += "v " + (P[0] * 50).toFixed(4) + " " + (P[1] * 50).toFixed(4) + " " + (P[2] * 50).toFixed(4) + "\n";
       obj += "l"; for (let i = 1; i <= base3.length; i++) obj += " " + i; obj += "\n";
       name = "frequency-curve-" + c.n + "-" + c.m + "-" + c.p + ".obj";
+    } else if (family === "harmono") {
+      const nm = currentNM();
+      const a = Math.max(1, nm.n), b = Math.max(1, nm.m), N = 2000, dt = 0.22 / Math.max(a, b, 2), decay = 3.6 / (N * dt);
+      for (let i = 0; i <= N; i++) {
+        const t = i * dt, env = Math.exp(-decay * t);
+        obj += "v " + (env * Math.sin(a * t + Math.PI / 2) * 50).toFixed(4) + " " + (env * Math.sin(b * t) * 50).toFixed(4) + " 0\n";
+      }
+      obj += "l"; for (let i = 1; i <= N + 1; i++) obj += " " + i; obj += "\n";
+      name = "frequency-harmonograph-" + a + "-" + b + ".obj";
     } else if (family === "orb") {
       const nm = currentNM(); buildOrb(nm.n, nm.m);
       for (const P of orbPts) obj += "v " + (P[0] * 50).toFixed(4) + " " + (P[1] * 50).toFixed(4) + " " + (P[2] * 50).toFixed(4) + "\n";

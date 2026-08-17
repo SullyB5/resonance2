@@ -75,6 +75,9 @@ export default function App() {
           <h2 className="panel-heading">Pattern</h2>
           <h3 className="plabel">Pattern type</h3>
           <div className="seg fam" id="families" role="group" aria-label="pattern family">
+            <button type="button" data-f="square" aria-pressed="false">square plate</button>
+            <button type="button" data-f="round" aria-pressed="false">round drum</button>
+            <button type="button" data-f="ripple" aria-pressed="false">ripple pool</button>
             <button type="button" data-f="harmono" aria-pressed="false">harmonograph</button>
             <button type="button" data-f="curve3d" aria-pressed="false">3D curve</button>
             <button type="button" data-f="surface" aria-pressed="false">3D surface</button>
@@ -91,17 +94,6 @@ export default function App() {
             <div className="nm-line"><span className="nm-tag">m</span><input id="mSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="4" aria-label="mode m" /><span className="nm-val" id="mLabel">4</span></div>
             <div className="nm-line" id="zLine" style={{ display: 'none' }}><span className="nm-tag">z</span><input id="pSlider" className="cool" type="range" min="1" max="500" step="1" defaultValue="5" aria-label="depth frequency z" /><span className="nm-val" id="pLabel">5</span></div>
           </div>
-          <h3 className="plabel">Looks</h3>
-          <div className="seg looks" id="looks" role="group" aria-label="named looks">
-            <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
-            <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
-            <button type="button" data-look="knot" aria-pressed="false">knot</button>
-            <button type="button" data-look="shell" aria-pressed="false">shell</button>
-            <button type="button" data-look="drum" aria-pressed="false">drum</button>
-            <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
-            <button type="button" data-look="eye" aria-pressed="false">eye</button>
-          </div>
-          <div className="hint">3D orbs, curves, drums, and harmonograph figures.</div>
           <h3 className="plabel">Motion</h3>
           <div className="nm-line pace-line">
             <span className="lab">detail</span>
@@ -133,6 +125,18 @@ export default function App() {
               <button type="button" id="zoomOut" aria-label="zoom out">−</button>
               <span id="zoomVal">100%</span>
               <button type="button" id="zoomIn" aria-label="zoom in">+</button>
+            </div>
+          </div>
+          <div className="looks-bar">
+            <h3 className="plabel">Looks</h3>
+            <div className="seg looks" id="looks" role="group" aria-label="named looks">
+              <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
+              <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
+              <button type="button" data-look="knot" aria-pressed="false">knot</button>
+              <button type="button" data-look="shell" aria-pressed="false">shell</button>
+              <button type="button" data-look="drum" aria-pressed="false">drum</button>
+              <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
+              <button type="button" data-look="eye" aria-pressed="false">eye</button>
             </div>
           </div>
           <div className="pitch-row"><span className="lab">Pitch</span><input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="pitch" /></div>

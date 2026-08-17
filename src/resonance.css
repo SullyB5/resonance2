@@ -796,6 +796,24 @@ input[type="range"].cool::-webkit-slider-thumb { border-color: var(--aqua); }
   flex: 0 0 auto;
 }
 
+.looks-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 12px;
+}
+
+.looks-bar .plabel,
+.looks-bar .plabel:not(:first-of-type) {
+  margin: 0;
+  font-size: 14px;
+}
+
+.looks-bar .seg.looks {
+  flex: 1 1 220px;
+}
+
 .seg.looks button {
   background: linear-gradient(180deg, #fff, var(--sky));
   border: 1px solid var(--card-line);
