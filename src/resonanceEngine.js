@@ -181,8 +181,6 @@ export function startResonanceEngine() {
   const LOOKS = {
     galaxy: { family: "orb", n: 6, m: 4, view: "sand", invert: false },
     nebula: { family: "orb", n: 11, m: 5, view: "sand", invert: false },
-    knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false },
-    shell: { family: "surface", n: 8, m: 5, view: "field", invert: false },
     drum: { family: "drum3d", n: 5, m: 3, view: "field", invert: false },
     infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false }
   };

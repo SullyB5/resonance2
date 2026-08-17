@@ -132,8 +132,6 @@ export default function App() {
             <div className="seg looks" id="looks" role="group" aria-label="named looks">
               <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
               <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
-              <button type="button" data-look="knot" aria-pressed="false">knot</button>
-              <button type="button" data-look="shell" aria-pressed="false">shell</button>
               <button type="button" data-look="drum" aria-pressed="false">drum</button>
               <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
             </div>
