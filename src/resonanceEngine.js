@@ -184,8 +184,7 @@ export function startResonanceEngine() {
     knot: { family: "curve3d", n: 3, m: 5, p: 7, view: "sand", invert: false },
     shell: { family: "surface", n: 8, m: 5, view: "field", invert: false },
     drum: { family: "drum3d", n: 5, m: 3, view: "field", invert: false },
-    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false },
-    eye: { family: "harmono", n: 3, m: 2, view: "sand", invert: false }
+    infinity: { family: "harmono", n: 2, m: 1, view: "sand", invert: false }
   };
   function paintLook(name) {
     document.querySelectorAll("#looks [data-look]").forEach(x => x.setAttribute("aria-pressed", x.dataset.look === name));

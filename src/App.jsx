@@ -136,7 +136,6 @@ export default function App() {
               <button type="button" data-look="shell" aria-pressed="false">shell</button>
               <button type="button" data-look="drum" aria-pressed="false">drum</button>
               <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
-              <button type="button" data-look="eye" aria-pressed="false">eye</button>
             </div>
           </div>
           <div className="pitch-row"><span className="lab">Pitch</span><input id="freq" type="range" min="0" max="1000" defaultValue="500" aria-label="pitch" /></div>
