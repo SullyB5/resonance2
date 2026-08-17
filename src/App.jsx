@@ -95,6 +95,28 @@ export default function App() {
                 <input id="pace" className="cool" type="range" min="1" max="10" defaultValue="3" aria-label="motion pace" />
                 <span className="lab">flow</span>
               </div>
+              <h3 className="plabel">Looks</h3>
+              <div className="seg looks" id="looks" role="group" aria-label="named looks">
+                <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
+                <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
+                <button type="button" data-look="drum" aria-pressed="false">drum</button>
+                <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
+              </div>
+              <h3 className="plabel">Colors</h3>
+              <div className="color-row">
+                <label className="color-pick">
+                  <span className="color-pick-lab">background</span>
+                  <input id="vizBg" type="color" value="#f3fbff" aria-label="background color" />
+                </label>
+                <label className="color-pick">
+                  <span className="color-pick-lab">model</span>
+                  <input id="vizModel" type="color" value="#1b9de8" aria-label="model color" />
+                </label>
+                <label className="color-pick">
+                  <span className="color-pick-lab">accent</span>
+                  <input id="vizAccent" type="color" value="#ff7e6e" aria-label="accent color" />
+                </label>
+              </div>
             </div>
             <div className="pattern-panel-lab" hidden={view !== 'lab'}>
               <h3 className="plabel">Plate type</h3>
@@ -176,47 +198,20 @@ export default function App() {
           </div>
         </section>
 
-        <section className="card panel col-sound" hidden={view !== 'studio'}>
-          <h2 className="panel-heading">Sound</h2>
-          <div className="sound-stack">
-            <div className="sound-box">
-              <h3 className="plabel">Wave shape</h3>
-              <div className="seg" id="waves" role="group" aria-label="waveform">
-                <button type="button" data-w="sine" aria-pressed="true">sine</button>
-                <button type="button" data-w="triangle" aria-pressed="false">triangle</button>
-                <button type="button" data-w="square" aria-pressed="false">square</button>
-                <button type="button" data-w="sawtooth" aria-pressed="false">saw</button>
-              </div>
-              <h3 className="plabel">Try these</h3>
-              <div className="seg warm" id="modes" role="group" aria-label="experiment">
-                <button type="button" data-m="tone" aria-pressed="true">pure tone</button>
-                <button type="button" data-m="harmonics" aria-pressed="false">harmonics</button>
-                <button type="button" data-m="beat" aria-pressed="false">beat</button>
-                <button type="button" data-m="chord" aria-pressed="false">chord</button>
-              </div>
-            </div>
-            <div className="sound-box">
-              <h3 className="plabel">Looks</h3>
-              <div className="seg looks" id="looks" role="group" aria-label="named looks">
-                <button type="button" data-look="galaxy" aria-pressed="true">galaxy</button>
-                <button type="button" data-look="nebula" aria-pressed="false">nebula</button>
-                <button type="button" data-look="drum" aria-pressed="false">drum</button>
-                <button type="button" data-look="infinity" aria-pressed="false">infinity</button>
-              </div>
-            </div>
+        <div className="engine-audio-hidden" hidden aria-hidden="true">
+          <div className="seg" id="waves" role="group" aria-label="waveform">
+            <button type="button" data-w="sine" aria-pressed="true">sine</button>
+            <button type="button" data-w="triangle" aria-pressed="false">triangle</button>
+            <button type="button" data-w="square" aria-pressed="false">square</button>
+            <button type="button" data-w="sawtooth" aria-pressed="false">saw</button>
           </div>
-        </section>
-
-        <section className="col-signals" hidden={view !== 'studio'}>
-          <div className="card signal-card">
-            <h3>The wave <span className="sub">shape</span></h3>
-            <canvas id="scope" />
+          <div className="seg warm" id="modes" role="group" aria-label="experiment">
+            <button type="button" data-m="tone" aria-pressed="true">pure tone</button>
+            <button type="button" data-m="harmonics" aria-pressed="false">harmonics</button>
+            <button type="button" data-m="beat" aria-pressed="false">beat</button>
+            <button type="button" data-m="chord" aria-pressed="false">chord</button>
           </div>
-          <div className="card signal-card">
-            <h3>The mix <span className="sub">frequencies</span></h3>
-            <canvas id="spectrum" />
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   )

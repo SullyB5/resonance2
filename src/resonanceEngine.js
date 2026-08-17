@@ -296,13 +296,11 @@ export function startResonanceEngine() {
 
   paintFreq(); paintPlay();
 
-  const scope = $("scope"), sctx = scope.getContext("2d");
-  const spec = $("spectrum"), spctx = spec.getContext("2d");
   const plate = $("plate"), pctx = plate.getContext("2d");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   function fit(cv, c) { const r = cv.getBoundingClientRect(); cv.width = Math.max(1, r.width * dpr); cv.height = Math.max(1, r.height * dpr); c.setTransform(dpr, 0, 0, dpr, 0, 0); return { w: r.width, h: r.height }; }
-  let SC = fit(scope, sctx), SP = fit(spec, spctx), PL = fit(plate, pctx);
-  const onResize = () => { SC = fit(scope, sctx); SP = fit(spec, spctx); PL = fit(plate, pctx); seedGrains(); };
+  let PL = fit(plate, pctx);
+  const onResize = () => { PL = fit(plate, pctx); seedGrains(); };
   window.addEventListener("resize", onResize);
 
   plate.addEventListener("pointerdown", e => { if (!ROTATABLE()) return; dragging = true; lastX = e.clientX; lastY = e.clientY; try { plate.setPointerCapture(e.pointerId); } catch (_) {} });
@@ -314,38 +312,87 @@ export function startResonanceEngine() {
     setZoom(viewZoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
   }, { passive: false });
 
-  const timeBuf = new Uint8Array(2048), freqBuf = new Uint8Array(1024);
-  function drawScope() {
-    const { w, h } = SC; sctx.clearRect(0, 0, w, h);
-    const idle = performance.now() / 900;
-    sctx.strokeStyle = "rgba(214,180,92,0.22)"; sctx.lineWidth = 1;
-    sctx.beginPath(); sctx.moveTo(0, h / 2); sctx.lineTo(w, h / 2); sctx.stroke();
-    sctx.strokeStyle = "rgba(27,157,232,0.10)";
-    sctx.beginPath(); sctx.arc(w * 0.18, h * 0.5, h * 0.28, 0, Math.PI * 2); sctx.stroke();
-    sctx.beginPath(); sctx.arc(w * 0.82, h * 0.5, h * 0.22, 0, Math.PI * 2); sctx.stroke();
-    if (analyser && playing) analyser.getByteTimeDomainData(timeBuf);
-    sctx.lineWidth = 2.4; sctx.strokeStyle = "#1B9DE8"; sctx.shadowColor = "rgba(27,157,232,0.45)"; sctx.shadowBlur = 8;
-    sctx.beginPath(); const N = timeBuf.length, step = w / N;
-    for (let i = 0; i < N; i++) {
-      const live = playing ? (timeBuf[i] - 128) / 128 : Math.sin(i / N * Math.PI * 4 + idle) * 0.16;
-      const x = i * step, y = h / 2 + live * (h / 2 - 8);
-      i ? sctx.lineTo(x, y) : sctx.moveTo(x, y);
-    }
-    sctx.stroke(); sctx.shadowBlur = 0;
+  let vizBg = "#F3FBFF";
+  let modelRgb = { r: 27, g: 157, b: 232 };
+  let accentRgb = { r: 255, g: 126, b: 110 };
+  function hexToRgb(hex) {
+    const h = (hex || "#000000").replace("#", "");
+    const full = h.length === 3 ? h.split("").map(c => c + c).join("") : h;
+    return {
+      r: parseInt(full.slice(0, 2), 16) || 0,
+      g: parseInt(full.slice(2, 4), 16) || 0,
+      b: parseInt(full.slice(4, 6), 16) || 0
+    };
   }
-  function drawSpectrum() {
-    const { w, h } = SP; spctx.clearRect(0, 0, w, h);
-    const idle = performance.now() / 700;
-    if (analyser && playing) analyser.getByteFrequencyData(freqBuf);
-    const bars = 64, bw = w / bars;
-    for (let i = 0; i < bars; i++) {
-      const live = playing ? freqBuf[i] / 255 : 0.08 + 0.14 * (0.5 + 0.5 * Math.sin(idle + i * 0.22));
-      const bh = live * (h - 6), t = i / bars;
-      const r = Math.round(27 * (1 - t) + 47 * t), g = Math.round(157 * (1 - t) + 203 * t), b = Math.round(232 * (1 - t) + 190 * t);
-      spctx.fillStyle = playing ? `rgba(${r},${g},${b},0.95)` : `rgba(${r},${g},${b},0.38)`;
-      spctx.fillRect(i * bw + 1, h - bh, bw - 2, bh);
-    }
+  function applyVizColors() {
+    plate.style.background = vizBg;
   }
+  function fillVizBg(w, h) {
+    pctx.fillStyle = vizBg;
+    pctx.fillRect(0, 0, w, h);
+  }
+  function modelChannel(base, peak, hn, depth) {
+    const t = hn >= 0 ? hn : -hn;
+    const d = 0.42 + 0.58 * depth;
+    return Math.min(255, (base + (peak - base) * t) * d);
+  }
+  function modelDotColor(v, depth) {
+    let hn = invert ? -v : v;
+    const t = depth < 0 ? 0 : depth > 1 ? 1 : depth;
+    let r, g, b;
+    if (hn >= 0) {
+      r = modelChannel(40, modelRgb.r, hn, t);
+      g = modelChannel(90, modelRgb.g, hn, t);
+      b = modelChannel(160, modelRgb.b, hn, t);
+    } else {
+      r = modelChannel(200, accentRgb.r, -hn, t);
+      g = modelChannel(120, accentRgb.g, -hn, t);
+      b = modelChannel(110, accentRgb.b, -hn, t);
+    }
+    const a = 0.52 + 0.46 * t;
+    const s = 1.6 + 2.4 * t;
+    return { r, g, b, a, s };
+  }
+  function modelLineColor(v, depth) {
+    const c = modelDotColor(v, depth);
+    return { r: c.r, g: c.g, b: c.b, a: 0.38 + 0.58 * depth };
+  }
+  function surfaceShade(hAvg, diff) {
+    let hn = hAvg / 1.6;
+    if (hn > 1) hn = 1; else if (hn < -1) hn = -1;
+    if (invert) hn = -hn;
+    const df = diff;
+    let r, g, b;
+    if (hn >= 0) {
+      r = 244 + (modelRgb.r - 244) * hn;
+      g = 251 + (modelRgb.g - 251) * hn;
+      b = 255 + (modelRgb.b - 255) * hn;
+    } else {
+      const t = -hn;
+      r = 244 + (accentRgb.r - 244) * t;
+      g = 251 + (accentRgb.g - 251) * t;
+      b = 255 + (accentRgb.b - 255) * t;
+    }
+    r = Math.min(255, r * df);
+    g = Math.min(255, g * df);
+    b = Math.min(255, b * df);
+    return { r: r | 0, g: g | 0, b: b | 0 };
+  }
+  const vizBgInput = $("vizBg"), vizModelInput = $("vizModel"), vizAccentInput = $("vizAccent");
+  function wireColorInput(el, key) {
+    if (!el) return;
+    el.addEventListener("input", () => {
+      const rgb = hexToRgb(el.value);
+      if (key === "bg") vizBg = el.value;
+      else if (key === "model") modelRgb = rgb;
+      else accentRgb = rgb;
+      applyVizColors();
+    });
+  }
+  wireColorInput(vizBgInput, "bg");
+  wireColorInput(vizModelInput, "model");
+  wireColorInput(vizAccentInput, "accent");
+  applyVizColors();
 
   function besselJ(m, x) {
     x = Math.abs(x);
@@ -436,15 +483,15 @@ export function startResonanceEngine() {
 
   let hPhase = 0;
   function drawHarmono(w, h, n, m) {
-    pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
+    fillVizBg(w, h);
     if (!paused && !reduce) hPhase += 0.0015 * (paceVal / 3);
     if (!paused && !dragging && !reduce) yaw += spinRate();
     const a = Math.max(1, n), b = Math.max(1, m);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42 * viewZoom;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46 * viewZoom;
     const dt = 0.22 / Math.max(a, b, 2), STEPS = 3600, decay = 3.6 / (STEPS * dt), ph = hPhase + Math.PI / 2;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
     const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1;
-    pctx.lineWidth = 1.6; pctx.lineJoin = "round";
+    pctx.lineWidth = 2.2; pctx.lineJoin = "round";
     let prev = null;
     for (let i = 0; i < STEPS; i++) {
       const t = i * dt, env = Math.exp(-decay * t);
@@ -454,10 +501,8 @@ export function startResonanceEngine() {
       const X = cx + fx * R * x1, Y = cy - fy * R * y2;
       if (prev) {
         let d = (z2 / 1.75 + 1) / 2; if (d < 0) d = 0; else if (d > 1) d = 1;
-        const A = 0.28 + 0.64 * d; let r, g, bl;
-        if (invert) { r = 255; g = (105 + 80 * d) | 0; bl = (85 + 70 * d) | 0; }
-        else { r = (12 + 28 * d) | 0; g = (105 + 98 * d) | 0; bl = (182 + 20 * d) | 0; }
-        pctx.strokeStyle = "rgba(" + r + "," + g + "," + bl + "," + A + ")";
+        const lc = modelLineColor(env, d);
+        pctx.strokeStyle = "rgba(" + (lc.r | 0) + "," + (lc.g | 0) + "," + (lc.b | 0) + "," + lc.a + ")";
         pctx.beginPath(); pctx.moveTo(prev[0], prev[1]); pctx.lineTo(X, Y); pctx.stroke();
       }
       prev = [X, Y];
@@ -471,13 +516,13 @@ export function startResonanceEngine() {
     for (let i = 0; i <= N; i++) { const t = i / N * TWO; base3.push([Math.sin(n * t + px), Math.sin(m * t + py), Math.sin(p * t)]); }
   }
   function drawCurve3D(w, h, n, m, p) {
-    pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
+    fillVizBg(w, h);
     build3(n, m, p);
     if (!paused && !dragging && !reduce) yaw += spinRate();
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.40 * viewZoom;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.44 * viewZoom;
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
     const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1;
-    pctx.lineWidth = 1.7; pctx.lineJoin = "round";
+    pctx.lineWidth = 2.4; pctx.lineJoin = "round";
     let prev = null;
     for (let i = 0; i < base3.length; i++) {
       const P = base3[i], x = P[0], y = P[1], z = P[2];
@@ -486,9 +531,8 @@ export function startResonanceEngine() {
       const X = cx + fx * R * x1, Y = cy - fy * R * y2;
       if (prev) {
         let t = (z2 / 1.75 + 1) / 2; if (t < 0) t = 0; else if (t > 1) t = 1;
-        const A = 0.30 + 0.64 * t; let r, g, b;
-        if (invert) { r = 255; g = (105 + 80 * t) | 0; b = (85 + 70 * t) | 0; } else { r = (12 + 28 * t) | 0; g = (105 + 98 * t) | 0; b = (182 + 20 * t) | 0; }
-        pctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + A + ")";
+        const lc = modelLineColor(y, t);
+        pctx.strokeStyle = "rgba(" + (lc.r | 0) + "," + (lc.g | 0) + "," + (lc.b | 0) + "," + lc.a + ")";
         pctx.beginPath(); pctx.moveTo(prev[0], prev[1]); pctx.lineTo(X, Y); pctx.stroke();
       }
       prev = [X, Y];
@@ -527,7 +571,7 @@ export function startResonanceEngine() {
   }
   function drawSurface(w, h, n, m, kind) {
     kind = kind || "plate";
-    pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
+    fillVizBg(w, h);
     buildSurface(n, m, kind);
     if (!paused && !dragging && !reduce) yaw += spinRate();
     const G = SURF_GS, W = G + 1, amp = 0.9, quadCount = G * G;
@@ -586,14 +630,9 @@ export function startResonanceEngine() {
       const ny2 = nY * cb - nz1 * sb, nz2 = nY * sb + nz1 * cb;
       const Ln = Math.hypot(nx1, ny2, nz2) || 1;
       let diff = (nx1 * Lx + ny2 * Ly + nz2 * Lz) / Ln;
-      diff = 0.4 + 0.72 * Math.max(0, diff);
-      let hn = hAvg / 1.6; if (hn > 1) hn = 1; else if (hn < -1) hn = -1; if (invert) hn = -hn;
-      let r, g, bl;
-      if (hn >= 0) { r = 244 + (27 - 244) * hn; g = 251 + (157 - 251) * hn; bl = 255 + (232 - 255) * hn; }
-      else { const t = -hn; r = 244 + (255 - 244) * t; g = 251 + (126 - 251) * t; bl = 255 + (110 - 255) * t; }
-      const df = diff; r = r * df; g = g * df; bl = bl * df;
-      r = r > 255 ? 255 : r; g = g > 255 ? 255 : g; bl = bl > 255 ? 255 : bl;
-      pctx.fillStyle = "rgb(" + (r | 0) + "," + (g | 0) + "," + (bl | 0) + ")";
+      diff = 0.45 + 0.78 * Math.max(0, diff);
+      const sh = surfaceShade(hAvg, diff);
+      pctx.fillStyle = "rgb(" + sh.r + "," + sh.g + "," + sh.b + ")";
       pctx.beginPath();
       pctx.moveTo(surfPx[a], surfPy[a]);
       pctx.lineTo(surfPx[b], surfPy[b]);
@@ -608,7 +647,7 @@ export function startResonanceEngine() {
 
   function buildOrb(n, m) {
     const key = patternRev + "|" + n + "|" + m; if (key === orbKey && orbPts.length) return; orbKey = key;
-    const N = 3600, ga = Math.PI * (3 - Math.sqrt(5));
+    const N = 4800, ga = Math.PI * (3 - Math.sqrt(5));
     orbPts = new Array(N);
     for (let i = 0; i < N; i++) {
       const y = 1 - (i / (N - 1)) * 2;
@@ -622,11 +661,11 @@ export function startResonanceEngine() {
     }
   }
   function drawOrb(w, h, n, m) {
-    pctx.fillStyle = "#F3FBFF"; pctx.fillRect(0, 0, w, h);
+    fillVizBg(w, h);
     buildOrb(n, m);
     if (!paused && !dragging && !reduce) yaw += spinRate();
     const ca = Math.cos(yaw), sa = Math.sin(yaw), cb = Math.cos(pitch), sb = Math.sin(pitch);
-    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.42 * viewZoom;
+    const fx = flipH ? -1 : 1, fy = flipV ? -1 : 1, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46 * viewZoom;
     const pts = new Array(orbPts.length);
     for (let i = 0; i < orbPts.length; i++) {
       const P = orbPts[i], x = P[0], y = P[1], z = P[2];
@@ -638,13 +677,9 @@ export function startResonanceEngine() {
     for (let i = 0; i < pts.length; i++) {
       const P = pts[i];
       let t = (P.z / 1.6 + 1) / 2; if (t < 0) t = 0; else if (t > 1) t = 1;
-      let hn = invert ? -P.v : P.v;
-      let r, g, b;
-      if (hn >= 0) { r = 12 + 28 * t; g = 105 + 98 * t; b = 182 + 40 * t; }
-      else { r = 255; g = 110 + 40 * t; b = 100 + 30 * t; }
-      const a = 0.22 + 0.72 * t, s = 1.05 + 1.55 * t;
-      pctx.fillStyle = "rgba(" + (r | 0) + "," + (g | 0) + "," + (b | 0) + "," + a + ")";
-      pctx.fillRect(P.X, P.Y, s, s);
+      const dc = modelDotColor(P.v, t);
+      pctx.fillStyle = "rgba(" + (dc.r | 0) + "," + (dc.g | 0) + "," + (dc.b | 0) + "," + dc.a + ")";
+      pctx.fillRect(P.X - dc.s * 0.5, P.Y - dc.s * 0.5, dc.s, dc.s);
     }
     modeNM.textContent = "3D orb · " + n + "×" + m;
   }
@@ -756,7 +791,7 @@ export function startResonanceEngine() {
       if (v >= SWEEP_HI) { v = SWEEP_HI; sweepDir = -1; } if (v <= SWEEP_LO) { v = SWEEP_LO; sweepDir = 1; }
       freqSlider.value = v; freq = sliderToFreq(v); paintFreq(); retune();
     }
-    drawScope(); drawSpectrum(); drawPlate();
+    drawPlate();
     rafId = requestAnimationFrame(loop);
   }
 
