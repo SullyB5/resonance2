@@ -1,7 +1,7 @@
-// Serverless proxy to fal.ai — keeps FAL_KEY hidden from the browser.
+// Serverless proxy to fal.ai — CommonJS for reliable Vercel runtime.
 const MODEL = "fal-ai/fast-sdxl/image-to-image";
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ error: "POST only." });
     return;
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const url = data?.images?.[0]?.url;
+    const url = data && data.images && data.images[0] && data.images[0].url;
     if (!url) {
       res.status(502).json({ error: "No image came back from the renderer." });
       return;
@@ -68,6 +68,6 @@ export default async function handler(req, res) {
 
     res.status(200).json({ url });
   } catch (e) {
-    res.status(500).json({ error: e?.message || "Server error." });
+    res.status(500).json({ error: (e && e.message) ? e.message : "Server error." });
   }
-}
+};
